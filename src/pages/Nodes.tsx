@@ -372,7 +372,11 @@ const HOST_SPECS: Record<string, HostSpec> = {
 };
 
 // Map gpu_model substrings to FP32 TFLOPS estimates. First-match wins.
+// Order: more-specific patterns must come BEFORE more-general ones
+// (e.g. "RTX PRO 6000" before "RTX 6000" if both existed).
 const GPU_TFLOPS: Array<[RegExp, string]> = [
+  // GB202 chip — same silicon as RTX 5090, 24064 CUDA cores @ ~2.6 GHz.
+  [/RTX\s*PRO\s*6000.*Blackwell/i, "125 TFLOPS"],
   [/RTX\s*5090/i, "104 TFLOPS"],
   [/RTX\s*4090/i, "83 TFLOPS"],
   [/RTX\s*4080/i, "49 TFLOPS"],
