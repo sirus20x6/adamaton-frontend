@@ -1,4 +1,4 @@
-# adamomaton-frontend
+# adamaton-frontend
 
 React 19 + Vite + Tailwind SPA. Single binary bundle served by Caddy on the Pi; talks to `platform.dashboard` via `/api/v1/*` proxy.
 

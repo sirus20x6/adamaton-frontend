@@ -1,4 +1,4 @@
-# Agent instructions — adamomaton-frontend
+# Agent instructions — adamaton-frontend
 
 React/Vite SPA. Leaf of the dep DAG — never imported by anything else.
 
