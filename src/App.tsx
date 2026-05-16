@@ -18,6 +18,7 @@ const TrainingDashboard = lazy(() => import("@/pages/TrainingDashboard"));
 const Zotero = lazy(() => import("@/pages/Zotero"));
 const Plugins = lazy(() => import("@/pages/Plugins"));
 const PluginRun = lazy(() => import("@/pages/PluginRun"));
+const Connectors = lazy(() => import("@/pages/Connectors"));
 const Sources = lazy(() => import("@/pages/Sources"));
 const Memory = lazy(() => import("@/pages/Memory"));
 const Skills = lazy(() => import("@/pages/Skills"));
@@ -142,6 +143,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <PluginRun />
+                </Suspense>
+              }
+            />
+            <Route
+              path="connectors"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Connectors />
                 </Suspense>
               }
             />

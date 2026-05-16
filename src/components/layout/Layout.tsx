@@ -17,6 +17,7 @@ import {
   Search as SearchIcon,
   Server,
   Settings as SettingsIcon,
+  Workflow,
   Wrench,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -71,6 +72,10 @@ const NAV: readonly NavItem[] = [
   { to: "/graph/_", label: "Graph", icon: Network },
   { to: "/book/_", label: "Books", icon: BookOpen },
   { to: "/plugins", label: "Plugins", icon: Plug },
+  // Connectors = workflow-node catalog (builtin checks, community YAMLs,
+  // n8n bridge imports). Read-only browse of pluginLoader.All() — neighbor
+  // to Plugins so the "talk to external things" cluster stays together.
+  { to: "/connectors", label: "Connectors", icon: Workflow },
   { to: "/zotero", label: "Zotero", icon: BookMarked },
   { to: "/experiments", label: "Experiments", icon: FlaskConical },
   // Evolution = the evo apiserver's runs/insights view (MAP-Elites loop).
