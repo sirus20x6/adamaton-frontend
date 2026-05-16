@@ -1,0 +1,372 @@
+import { useEffect, useState } from "react";
+import {
+  BookMarked,
+  BookOpen,
+  Brain,
+  Cable,
+  ChevronLeft,
+  ChevronRight,
+  Dna,
+  FlaskConical,
+  FlaskRound,
+  Home as HomeIcon,
+  Library as LibraryIcon,
+  Menu,
+  Network,
+  Plug,
+  Search as SearchIcon,
+  Server,
+  Settings as SettingsIcon,
+  Wrench,
+} from "lucide-react";
+import { NavLink, Outlet } from "react-router-dom";
+
+import { SystemHealthWidget } from "@/components/layout/SystemHealthWidget";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useSystemHealth } from "@/api/system";
+import { useConnectionStore } from "@/features/research/connectionStore";
+import { cn } from "@/lib/utils";
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof SearchIcon;
+  end?: boolean;
+  // external=true renders a plain anchor instead of a NavLink so the
+  // browser leaves the SPA. Used for pages still living in the
+  // (deprecated) evo dashboard until they get ported into the SPA.
+  external?: boolean;
+};
+
+const NAV: readonly NavItem[] = [
+  // Home is the new unified-suite landing — delegator token statuses,
+  // recent tasks + workflows, evo runs. Lives at the index path so
+  // hitting `/` lands here first. Search moves to /search.
+  { to: "/", label: "Home", icon: HomeIcon, end: true },
+  { to: "/search", label: "Search", icon: SearchIcon },
+  { to: "/library", label: "Library", icon: LibraryIcon },
+  // Memory = cross-agent memory store from the evo-api backend
+  // (CLAUDE.md files, opencode memory, insights/entities/relationships).
+  // Sits next to Library so the "user-authored knowledge" entries cluster
+  // together visually.
+  { to: "/memory", label: "Memory", icon: Brain },
+  // SPA-native Skills page (ported 2026-05-15 from the inline-HTML evo
+  // dashboard page). Surfaces the SkillRAE multi-level graph -- skill
+  // CRUD on the Skills tab, KMeans communities on the Communities tab,
+  // per-skill subunit extraction on the Subunits tab, and a query
+  // debugger that hits /v1/rae/compile on the RAE Debug tab.
+  { to: "/skills", label: "Skills", icon: Wrench },
+  // Nano = autonomous research-pipeline runs. Belongs in the
+  // "knowledge + agent activity" cluster (with Memory + Skills) rather
+  // than the long-jobs cluster, since each run pulls from SkillRAE +
+  // Memory and produces an artifact (paper.pdf) the user reads.
+  { to: "/nano", label: "Research Runs", icon: FlaskRound },
+  { to: "/graph/_", label: "Graph", icon: Network },
+  { to: "/book/_", label: "Books", icon: BookOpen },
+  { to: "/plugins", label: "Plugins", icon: Plug },
+  { to: "/zotero", label: "Zotero", icon: BookMarked },
+  { to: "/experiments", label: "Experiments", icon: FlaskConical },
+  // Evolution = the evo apiserver's runs/insights view (MAP-Elites loop).
+  // Sits below Experiments so the "running long jobs" section of the
+  // sidebar stays grouped together.
+  { to: "/evolution", label: "Evolution", icon: Dna },
+  // Nodes = worker registry from evo-api /api/v1/workers. Lives in the
+  // "long-jobs" cluster below Evolution because it surfaces which boxes
+  // are actually executing those jobs.
+  { to: "/nodes", label: "Nodes", icon: Server },
+  // MCP Manager talks to a local workstation daemon (ldr-mcp-manager.service)
+  // to manage MCP servers configured in Claude Code, Codex, and Gemini.
+  // Lives next to Settings since it's primarily a config surface.
+  { to: "/mcp", label: "MCP Manager", icon: Cable },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
+];
+
+const COLLAPSED_KEY = "dr.sidebar.collapsed";
+
+function readCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(value: boolean): void {
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+  } catch {
+    // ignore — private mode, sandbox, etc.
+  }
+}
+
+function StatusPill() {
+  const status = useConnectionStore((s) => s.status);
+  const deps = useConnectionStore((s) => s.deps);
+  const lastChecked = useConnectionStore((s) => s.lastChecked);
+
+  const wsLive = status === "open";
+  const wsConnecting = status === "connecting";
+  const allDepsOk =
+    lastChecked > 0 && deps.postgres && deps.redis && deps.sidecar;
+  const anyDepDown =
+    lastChecked > 0 && (!deps.postgres || !deps.redis || !deps.sidecar);
+
+  // Resolve to one of: live | connecting | degraded | idle
+  let kind: "live" | "connecting" | "degraded" | "idle" = "idle";
+  if (wsLive || (status === "idle" && allDepsOk)) {
+    kind = "live";
+  } else if (wsConnecting) {
+    kind = "connecting";
+  } else if (anyDepDown) {
+    kind = "degraded";
+  }
+
+  const labels: Record<typeof kind, string> = {
+    live: "Live",
+    connecting: "Connecting",
+    degraded: "Degraded",
+    idle: "Idle",
+  };
+
+  const textTone: Record<typeof kind, string> = {
+    live: "text-primary",
+    connecting: "text-amber-700 dark:text-amber-300",
+    degraded: "text-red-700 dark:text-red-300",
+    idle: "text-muted-foreground",
+  };
+
+  const dotTone: Record<typeof kind, string> = {
+    live: "bg-primary animate-pulse-soft",
+    connecting: "bg-amber-500 animate-pulse-soft",
+    degraded: "bg-red-500",
+    idle: "bg-muted-foreground",
+  };
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-border bg-card/40 px-2 py-0.5 text-[0.7rem] font-medium uppercase tracking-wide",
+        textTone[kind],
+      )}
+      aria-live="polite"
+    >
+      <span className={cn("inline-block h-1.5 w-1.5 rounded-full", dotTone[kind])} />
+      {labels[kind]}
+    </span>
+  );
+}
+
+type NavProps = {
+  collapsed: boolean;
+  onNavigate?: () => void;
+};
+
+function NavList({ collapsed, onNavigate }: NavProps) {
+  const itemClass = cn(
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+    "hover:bg-accent hover:text-accent-foreground",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "text-muted-foreground",
+    collapsed && "justify-center px-2",
+  );
+  return (
+    <nav className="flex flex-col gap-0.5 p-2">
+      {NAV.map(({ to, label, icon: Icon, end, external }) => {
+        if (external) {
+          // Plain anchor so the browser leaves the SPA -- the target
+          // page is server-rendered HTML behind Caddy's @evoapi block.
+          return (
+            <a
+              key={to}
+              href={to}
+              onClick={onNavigate}
+              title={collapsed ? label : undefined}
+              className={itemClass}
+              aria-label={collapsed ? label : undefined}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {collapsed ? null : <span className="truncate">{label}</span>}
+            </a>
+          );
+        }
+        return (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            onClick={onNavigate}
+            title={collapsed ? label : undefined}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                "hover:bg-accent hover:text-accent-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isActive
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground",
+                collapsed && "justify-center px-2",
+              )
+            }
+            aria-label={collapsed ? label : undefined}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {collapsed ? null : <span className="truncate">{label}</span>}
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
+function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex h-14 items-center gap-2 border-b border-border px-4",
+        collapsed && "justify-center px-2",
+      )}
+    >
+      <div className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+      {collapsed ? null : (
+        <span className="text-sm font-semibold tracking-tight">
+          Deep Research
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Polls `/platform/health/ready` once mounted and pushes the result into
+ * the connection store so any header indicator stays accurate as the user
+ * navigates between routes.
+ */
+function HealthPoller() {
+  const { data, isSuccess, dataUpdatedAt } = useSystemHealth(30_000);
+  const setHealth = useConnectionStore((s) => s.setHealth);
+  const markChecked = useConnectionStore((s) => s.markChecked);
+
+  useEffect(() => {
+    if (!isSuccess || !data) return;
+    setHealth(data.deps);
+    markChecked();
+  }, [isSuccess, data, dataUpdatedAt, setHealth, markChecked]);
+
+  return null;
+}
+
+export function Layout() {
+  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    writeCollapsed(collapsed);
+  }, [collapsed]);
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+      <HealthPoller />
+
+      {/* Desktop sidebar (md+) */}
+      <aside
+        className={cn(
+          "no-print hidden shrink-0 flex-col border-r border-border bg-card/40 md:flex",
+          collapsed ? "w-14" : "w-56",
+        )}
+      >
+        <SidebarBrand collapsed={collapsed} />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <NavList collapsed={collapsed} />
+        </div>
+        <div
+          className={cn(
+            "border-t border-border p-2",
+            collapsed ? "flex justify-center" : "flex justify-end",
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors",
+              "hover:bg-accent hover:text-accent-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile drawer */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="left"
+          className="no-print w-64 max-w-[85vw] border-r border-l-0"
+        >
+          <SheetHeader>
+            <SheetTitle>
+              <span className="flex items-center gap-2">
+                <span
+                  className="h-2 w-2 rounded-full bg-primary"
+                  aria-hidden="true"
+                />
+                Deep Research
+              </span>
+            </SheetTitle>
+          </SheetHeader>
+          <SheetBody className="px-2 py-2">
+            <NavList
+              collapsed={false}
+              onNavigate={() => setMobileOpen(false)}
+            />
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="no-print flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/60 px-4 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open navigation"
+              title="Open navigation"
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border md:hidden",
+                "bg-card/40 text-muted-foreground transition-colors",
+                "hover:bg-accent hover:text-accent-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            <h1 className="text-sm font-medium tracking-tight">Deep Research</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <StatusPill />
+            <SystemHealthWidget />
+            <ThemeToggle />
+          </div>
+        </header>
+        <main className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

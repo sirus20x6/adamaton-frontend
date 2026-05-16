@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* KaTeX CSS is imported once in main.tsx — do not @import here, it makes Vite slower in dev */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 20 14.3% 4.1%;
+    --foreground: 0 0% 95%;
+
+    --card: 24 9.8% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 12 6.5% 15.1%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@media print {
+  /* Force a printable monochrome surface, regardless of theme. */
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Strip the application chrome (header, sidebar, drawers, tooltips). */
+  .no-print,
+  [data-radix-popper-content-wrapper],
+  [role="tooltip"],
+  [data-state="open"][role="dialog"],
+  [data-radix-portal] {
+    display: none !important;
+  }
+
+  /* Let the document flow naturally onto pages. */
+  html,
+  body,
+  #root,
+  main {
+    height: auto !important;
+    min-height: 0 !important;
+    width: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Constrain prose to a sane reading width and let it break across pages. */
+  article,
+  .prose {
+    max-width: 720px !important;
+    margin: 0 auto !important;
+    color: black !important;
+  }
+
+  /* Code blocks should keep going onto the next page rather than clipping. */
+  pre,
+  code {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    page-break-inside: auto !important;
+    background: #f5f5f5 !important;
+    color: black !important;
+  }
+
+  pre {
+    border: 1px solid #ccc !important;
+    padding: 0.75rem !important;
+  }
+
+  /* Pagination controls — gone. */
+  [data-pagination],
+  nav[aria-label="pagination"] {
+    display: none !important;
+  }
+
+  /* Avoid widow/orphan headings. */
+  h1,
+  h2,
+  h3 {
+    page-break-after: avoid !important;
+  }
+
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+}

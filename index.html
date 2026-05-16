@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0c0a09" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Deep Research</title>
+    <script>
+      // Resolve theme before React mounts to avoid a light-mode flash.
+      // Order: explicit user choice > system preference > dark default.
+      (function () {
+        try {
+          var stored = localStorage.getItem("dr.theme");
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var theme = stored || (prefersDark ? "dark" : "dark"); // dark by default if nothing stored
+          var root = document.documentElement;
+          if (theme === "light") root.classList.remove("dark");
+          else root.classList.add("dark");
+        } catch (_) {
+          // localStorage may be blocked (private mode, etc.) — leave the html class as-is.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
