@@ -393,12 +393,13 @@ function gpuTflops(model: string | undefined): string | null {
   return null;
 }
 
-// Collect one spec triplet per distinct host within a rack, deduped so that
-// identical (compute, memBw, storage) tuples coalesce. GPU compute (per
-// worker) overrides host compute when present. Host-level memory bandwidth
-// and storage come straight from HOST_SPECS.
+// Collect one spec tuple per distinct host within a rack, deduped so that
+// identical tuples coalesce. GPU info (model + VRAM) and GPU TFLOPS come
+// from the first worker on each host that has a GPU; CPU compute, memory
+// bandwidth, and storage come straight from HOST_SPECS.
 interface RackHostSpec {
-  compute: string | null;
+  gpu: string | null;     // "RTX PRO 6000 Blackwell · 96G"
+  compute: string | null; // "125 TFLOPS" (GPU) or "~10 GFLOPS" (CPU)
   memBw: string | null;
   storage: string | null;
 }
@@ -408,7 +409,11 @@ function rackSpecs(members: Worker[]): RackHostSpec[] {
   for (const w of members) {
     if (byHost.has(w.hostname)) continue;
     const host = HOST_SPECS[w.hostname];
+    const gpuLabel = hasGPU(w)
+      ? `${w.gpu_model}${w.gpu_vram_gb ? ` · ${w.gpu_vram_gb}G` : ""}`
+      : null;
     byHost.set(w.hostname, {
+      gpu: gpuLabel,
       compute: gpuTflops(w.gpu_model) ?? host?.compute ?? null,
       memBw: host?.memBw ?? null,
       storage: host?.storage ?? null,
@@ -417,8 +422,8 @@ function rackSpecs(members: Worker[]): RackHostSpec[] {
   const seen = new Set<string>();
   const out: RackHostSpec[] = [];
   for (const s of byHost.values()) {
-    if (!s.compute && !s.memBw && !s.storage) continue;
-    const k = `${s.compute ?? ""}|${s.memBw ?? ""}|${s.storage ?? ""}`;
+    if (!s.gpu && !s.compute && !s.memBw && !s.storage) continue;
+    const k = `${s.gpu ?? ""}|${s.compute ?? ""}|${s.memBw ?? ""}|${s.storage ?? ""}`;
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(s);
@@ -676,12 +681,6 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
     ? ""
     : `${ramUsed!.toFixed(1)}/${ramTotal}G`;
 
-  const gpu = hasGPU(w)
-    ? `${w.gpu_model}${
-        w.gpu_count && w.gpu_count > 1 ? `×${w.gpu_count}` : ""
-      }`
-    : null;
-
   const hbRaw = w.last_heartbeat ?? w.last_heartbeat_at;
   const hb = hbRaw ? new Date(hbRaw) : null;
   const hbValid = hb && !Number.isNaN(hb.getTime()) ? hb : null;
@@ -763,25 +762,9 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
         />
       </div>
 
-      {/* Right side: GPU pill + heartbeat */}
+      {/* Right side: heartbeat + queue count. GPU lives on the rack
+          header now since it's a host-level fact, not a per-worker one. */}
       <div className="col-span-3 flex flex-col items-end gap-2 pt-1">
-        {gpu ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px]",
-              ACCENTS.orange.border,
-              ACCENTS.orange.bg,
-              ACCENTS.orange.text,
-            )}
-            title={`${gpu}${w.gpu_vram_gb ? ` · ${w.gpu_vram_gb} GB VRAM` : ""}${w.driver_version ? ` · driver ${w.driver_version}` : ""}`}
-          >
-            <Zap className="h-2.5 w-2.5" strokeWidth={2.5} />
-            <span className="truncate max-w-[140px]">{gpu}</span>
-            {w.gpu_vram_gb ? (
-              <span className="text-orange-400/80">·{w.gpu_vram_gb}G</span>
-            ) : null}
-          </span>
-        ) : null}
 
         {hbValid && (
           <span
@@ -913,9 +896,17 @@ function GroupRack({ cls, members, rackId, now }: GroupRackProps) {
                 {idx > 0 && (
                   <span className="block h-8 w-px bg-border/40" aria-hidden />
                 )}
-                {s.compute && (
+                {s.gpu && (
                   <RackSpecChip
                     Icon={Zap}
+                    label="gpu"
+                    value={s.gpu}
+                    accent={cls.accent}
+                  />
+                )}
+                {s.compute && (
+                  <RackSpecChip
+                    Icon={GaugeIcon}
                     label="compute"
                     value={s.compute}
                     accent={cls.accent}
