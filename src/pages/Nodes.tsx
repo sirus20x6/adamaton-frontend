@@ -380,6 +380,39 @@ function gpuTflops(model: string | undefined): string | null {
   return null;
 }
 
+// Collect one spec triplet per distinct host within a rack, deduped so that
+// identical (compute, memBw, storage) tuples coalesce. GPU compute (per
+// worker) overrides host compute when present. Host-level memory bandwidth
+// and storage come straight from HOST_SPECS.
+interface RackHostSpec {
+  compute: string | null;
+  memBw: string | null;
+  storage: string | null;
+}
+
+function rackSpecs(members: Worker[]): RackHostSpec[] {
+  const byHost = new Map<string, RackHostSpec>();
+  for (const w of members) {
+    if (byHost.has(w.hostname)) continue;
+    const host = HOST_SPECS[w.hostname];
+    byHost.set(w.hostname, {
+      compute: gpuTflops(w.gpu_model) ?? host?.compute ?? null,
+      memBw: host?.memBw ?? null,
+      storage: host?.storage ?? null,
+    });
+  }
+  const seen = new Set<string>();
+  const out: RackHostSpec[] = [];
+  for (const s of byHost.values()) {
+    if (!s.compute && !s.memBw && !s.storage) continue;
+    const k = `${s.compute ?? ""}|${s.memBw ?? ""}|${s.storage ?? ""}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Worker profiles — which resources each worker *type* leans on. Drives
 // the row of resource icons below the identity. Keyed on the bare
@@ -432,23 +465,37 @@ function ResourceIcons({ tags }: { tags: ResourceTag[] }) {
   );
 }
 
-// SpecLine — one labeled spec on the right side of a row.
-function SpecLine({
+// RackSpecChip — one labeled hardware spec rendered in the rack header.
+// Larger than the previous per-row SpecLine: 5-px icon + stacked
+// label/value so the value reads as the dominant figure.
+function RackSpecChip({
   Icon,
   label,
   value,
+  accent,
 }: {
   Icon: LucideIcon;
   label: string;
   value: string;
+  accent: AccentTone;
 }) {
   return (
     <div
-      className="flex items-center gap-1.5 font-mono text-xs text-slate-200"
+      className="flex items-center gap-2.5"
       title={`${label}: ${value}`}
     >
-      <Icon className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-      <span className="tabular-nums">{value}</span>
+      <Icon
+        className={cn("h-5 w-5 shrink-0", accent.text)}
+        strokeWidth={1.75}
+      />
+      <div className="flex flex-col leading-tight">
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-slate-500">
+          {label}
+        </span>
+        <span className="font-mono text-sm font-semibold tabular-nums text-slate-100">
+          {value}
+        </span>
+      </div>
     </div>
   );
 }
@@ -629,13 +676,7 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
 
   // identity = worker TYPE (what it does). hostname = WHERE it runs.
   const identity = w.identity ?? w.id.split("@")[0] ?? w.id;
-  const host = HOST_SPECS[w.hostname];
   const uses = WORKER_USES[identity] ?? [];
-
-  // Compute readout: per-host CPU figure overridden by GPU TFLOPS if a
-  // GPU is attached (since GPU compute dominates in those cases).
-  const gpuCompute = gpuTflops(w.gpu_model);
-  const computeStr = gpuCompute ?? host?.compute ?? null;
 
   return (
     <li className="group/row relative grid grid-cols-12 items-start gap-4 px-5 py-4 transition-colors hover:bg-white/[0.025]">
@@ -708,7 +749,7 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
         />
       </div>
 
-      {/* Right side: GPU + 4 stats in 2 lines */}
+      {/* Right side: GPU pill + heartbeat */}
       <div className="col-span-3 flex flex-col items-end gap-2 pt-1">
         {gpu ? (
           <span
@@ -728,60 +769,28 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
           </span>
         ) : null}
 
-        {/* 2 lines × up to 2 stats each: compute · mem-bw / storage · ♥+queue */}
-        <div className="flex flex-col items-end gap-1.5">
-          {(computeStr || host?.memBw) && (
-            <div className="flex items-center gap-4">
-              {computeStr && (
-                <SpecLine
-                  Icon={gpuCompute ? Zap : GaugeIcon}
-                  label="compute"
-                  value={computeStr}
-                />
-              )}
-              {host?.memBw && (
-                <SpecLine
-                  Icon={MemoryStick}
-                  label="memory bandwidth"
-                  value={host.memBw}
-                />
-              )}
-            </div>
-          )}
-          {(host?.storage || hbValid) && (
-            <div className="flex items-center gap-4">
-              {host?.storage && (
-                <SpecLine
-                  Icon={HardDrive}
-                  label="storage"
-                  value={host.storage}
-                />
-              )}
-              {hbValid && (
-                <span
-                  className="flex items-center gap-1.5 font-mono text-xs text-slate-200"
-                  title={`heartbeat${w.declared_queues?.length ? ` · ${w.declared_queues.join(", ")}` : ""}`}
-                >
-                  <span
-                    className="block h-2 w-2 rounded-full bg-emerald-400/90"
-                    style={{
-                      animation: "node-fade 3.4s ease-in-out infinite",
-                      boxShadow: "0 0 4px rgba(52,211,153,0.5)",
-                    }}
-                  />
-                  <span className="tabular-nums">
-                    {formatHbAge(hbValid, now)}
-                  </span>
-                  {w.declared_queues && w.declared_queues.length > 0 && (
-                    <span className="text-slate-500">
-                      · {w.declared_queues.length}q
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {hbValid && (
+          <span
+            className="flex items-center gap-1.5 font-mono text-xs text-slate-200"
+            title={`heartbeat${w.declared_queues?.length ? ` · ${w.declared_queues.join(", ")}` : ""}`}
+          >
+            <span
+              className="block h-2 w-2 rounded-full bg-emerald-400/90"
+              style={{
+                animation: "node-fade 3.4s ease-in-out infinite",
+                boxShadow: "0 0 4px rgba(52,211,153,0.5)",
+              }}
+            />
+            <span className="tabular-nums">
+              {formatHbAge(hbValid, now)}
+            </span>
+            {w.declared_queues && w.declared_queues.length > 0 && (
+              <span className="text-slate-500">
+                · {w.declared_queues.length}q
+              </span>
+            )}
+          </span>
+        )}
       </div>
     </li>
   );
@@ -805,6 +814,7 @@ function GroupRack({ cls, members, rackId, now }: GroupRackProps) {
   const onlineCount = members.filter(isOnline).length;
   const allOnline = onlineCount === members.length;
   const anyOnline = onlineCount > 0;
+  const specs = rackSpecs(members);
 
   return (
     <section
@@ -878,6 +888,45 @@ function GroupRack({ cls, members, rackId, now }: GroupRackProps) {
             <p className="mt-0.5 text-[11px] text-slate-400">{cls.blurb}</p>
           </div>
         </div>
+
+        {/* Rack-level hardware specs — inline, larger than per-row stats.
+            One group per distinct host-spec triplet, separated by a thin
+            divider when a rack spans heterogeneous hosts. */}
+        {specs.length > 0 && (
+          <div className="hidden flex-wrap items-center gap-x-6 gap-y-2 md:flex">
+            {specs.map((s, idx) => (
+              <div key={idx} className="flex items-center gap-6">
+                {idx > 0 && (
+                  <span className="block h-8 w-px bg-border/40" aria-hidden />
+                )}
+                {s.compute && (
+                  <RackSpecChip
+                    Icon={Zap}
+                    label="compute"
+                    value={s.compute}
+                    accent={cls.accent}
+                  />
+                )}
+                {s.memBw && (
+                  <RackSpecChip
+                    Icon={MemoryStick}
+                    label="mem bw"
+                    value={s.memBw}
+                    accent={cls.accent}
+                  />
+                )}
+                {s.storage && (
+                  <RackSpecChip
+                    Icon={HardDrive}
+                    label="storage"
+                    value={s.storage}
+                    accent={cls.accent}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
