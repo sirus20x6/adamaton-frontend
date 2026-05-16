@@ -360,6 +360,15 @@ const HOST_SPECS: Record<string, HostSpec> = {
     memBw: "17 GB/s",
     storage: "NVMe",
   },
+  // EPYC 7473X — 24c/48t Zen 3 + 3D V-Cache, AVX2 (no AVX-512).
+  // Compute: 24c × 16 FP32 ops/cycle × ~3.5 GHz ≈ 1.3 TFLOPS sustained.
+  // MemBw: 8-channel DDR4-3200 ≈ 205 GB/s peak.
+  // Storage: 2× Sabrent Rocket 4 Plus (PCIe 4.0, ~7 GB/s) + 4× 970 PRO.
+  workstation: {
+    compute: "~1.3 TFLOPS",
+    memBw: "205 GB/s",
+    storage: "NVMe",
+  },
 };
 
 // Map gpu_model substrings to FP32 TFLOPS estimates. First-match wins.
@@ -428,6 +437,7 @@ const WORKER_USES: Record<string, ResourceTag[]> = {
   "reindex-worker": ["cpu", "net", "disk"],
   "nano-research-worker": ["cpu", "ram", "net"],
   "workflow-worker": ["cpu", "net"],
+  "cluster-sidecar": ["cpu", "ram", "net"],
   "host-agent": [],
 };
 
