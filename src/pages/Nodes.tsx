@@ -18,6 +18,7 @@ import {
   Microchip,
   Monitor,
   Network,
+  Plus,
   Radio,
   Server,
   Zap,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ScaleWorkerDialog } from "@/features/nodes/ScaleWorkerDialog";
 
 const EVO_BASE = "/evo-api/api/v1";
 
@@ -813,6 +815,7 @@ function GroupRack({ cls, hostname, members, rackId, now }: GroupRackProps) {
   const allOnline = onlineCount === members.length;
   const anyOnline = onlineCount > 0;
   const specs = rackSpecs(members);
+  const [scaleOpen, setScaleOpen] = useState(false);
 
   return (
     <section
@@ -942,7 +945,7 @@ function GroupRack({ cls, hostname, members, rackId, now }: GroupRackProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Activity
               className={cn(
@@ -975,8 +978,29 @@ function GroupRack({ cls, hostname, members, rackId, now }: GroupRackProps) {
               online
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => setScaleOpen(true)}
+            title={`Spin up a worker on ${hostname}`}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+              cls.accent.border,
+              "hover:" + cls.accent.bgStrong,
+              cls.accent.text,
+            )}
+          >
+            <Plus className="h-4 w-4" strokeWidth={2} />
+          </button>
         </div>
       </header>
+
+      <ScaleWorkerDialog
+        open={scaleOpen}
+        onOpenChange={setScaleOpen}
+        hostname={hostname}
+        accentText={cls.accent.text}
+        accentBorder={cls.accent.border}
+      />
 
       <ul className="relative divide-y divide-border/40">
         {members.map((m) => (
