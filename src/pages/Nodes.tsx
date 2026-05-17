@@ -801,12 +801,13 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
 
 interface GroupRackProps {
   cls: DeviceClass;
+  hostname: string;
   members: Worker[];
   rackId: string;
   now: number;
 }
 
-function GroupRack({ cls, members, rackId, now }: GroupRackProps) {
+function GroupRack({ cls, hostname, members, rackId, now }: GroupRackProps) {
   const Icon = cls.Icon;
   const onlineCount = members.filter(isOnline).length;
   const allOnline = onlineCount === members.length;
@@ -878,9 +879,17 @@ function GroupRack({ cls, members, rackId, now }: GroupRackProps) {
               >
                 {rackId}
               </span>
-              <h2 className="text-base font-semibold tracking-tight text-slate-100">
-                {cls.label}
+              <h2 className="font-mono text-base font-semibold tracking-tight text-slate-50">
+                {hostname}
               </h2>
+              <span
+                className={cn(
+                  "font-mono text-[10px] uppercase tracking-[0.22em]",
+                  cls.accent.textMuted,
+                )}
+              >
+                {cls.label}
+              </span>
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">{cls.blurb}</p>
           </div>
@@ -1122,14 +1131,18 @@ export default function Nodes() {
 
   const now = useTick(1000);
 
+  // Each physical compute device gets its own rack — bucket by hostname,
+  // not device class. Device class is still derived (from the first worker
+  // on that host) so the rack gets the right accent color, icon, and class
+  // label; it just becomes a secondary descriptor instead of the group key.
   const groups = useMemo(() => {
-    const buckets = new Map<string, { cls: DeviceClass; members: Worker[] }>();
+    const buckets = new Map<string, { hostname: string; cls: DeviceClass; members: Worker[] }>();
     for (const w of workers) {
-      const cls = classify(w);
-      let bucket = buckets.get(cls.key);
+      const host = w.hostname || w.id || "unknown";
+      let bucket = buckets.get(host);
       if (!bucket) {
-        bucket = { cls, members: [] };
-        buckets.set(cls.key, bucket);
+        bucket = { hostname: host, cls: classify(w), members: [] };
+        buckets.set(host, bucket);
       }
       bucket.members.push(w);
     }
@@ -1138,12 +1151,20 @@ export default function Nodes() {
         const sa = STATUS_ORDER[a.status] ?? 9;
         const sb = STATUS_ORDER[b.status] ?? 9;
         if (sa !== sb) return sa - sb;
-        return a.hostname.localeCompare(b.hostname);
+        return (a.identity ?? a.id).localeCompare(b.identity ?? b.id);
       });
     }
-    return CLASS_ORDER.map((k) => buckets.get(k)).filter(
-      (g): g is { cls: DeviceClass; members: Worker[] } => Boolean(g),
-    );
+    // Sort racks by device-class order first (GPU rigs at top, then
+    // workstations, servers, jetson, pi, unclassified), then alpha by
+    // hostname within a class — so the page reads top-down from most-
+    // capable iron to least.
+    const classRank = new Map(CLASS_ORDER.map((k, i) => [k, i] as const));
+    return [...buckets.values()].sort((a, b) => {
+      const ra = classRank.get(a.cls.key) ?? 99;
+      const rb = classRank.get(b.cls.key) ?? 99;
+      if (ra !== rb) return ra - rb;
+      return a.hostname.localeCompare(b.hostname);
+    });
   }, [workers]);
 
   const aggregates = useMemo(() => {
@@ -1229,8 +1250,9 @@ export default function Nodes() {
         <div className="flex flex-col gap-4">
           {groups.map((g, i) => (
             <GroupRack
-              key={g.cls.key}
+              key={g.hostname}
               cls={g.cls}
+              hostname={g.hostname}
               members={g.members}
               rackId={`RACK·${String(i + 1).padStart(2, "0")}`}
               now={now}
