@@ -356,6 +356,20 @@ interface HostSpec {
   storage?: string;
 }
 
+// HOST_ALIASES collapses hostnames that name the same physical box.
+// The blackwell GPU stack and the workstation Linux desktop run on the
+// same machine: workers from the blackwell compose dir register with
+// hostname=blackwell while workers from the workstation dir register
+// with hostname=workstation. Without this alias, the Nodes view would
+// show that one machine as two racks ("RACK·01" + "RACK·02").
+// Keep in sync with platform/dashboard/apiserver/racks.yaml aliases.
+const HOST_ALIASES: Record<string, string> = {
+  blackwell: "workstation",
+};
+function canonicalHost(h: string): string {
+  return HOST_ALIASES[h] ?? h;
+}
+
 const HOST_SPECS: Record<string, HostSpec> = {
   pi: {
     compute: "~10 GFLOPS",
@@ -407,14 +421,18 @@ interface RackHostSpec {
 }
 
 function rackSpecs(members: Worker[]): RackHostSpec[] {
+  // Canonicalize the dedup key so a single physical machine that spans
+  // multiple compose stacks (e.g. blackwell + workstation) doesn't
+  // produce two spec rows in the same rack panel.
   const byHost = new Map<string, RackHostSpec>();
   for (const w of members) {
-    if (byHost.has(w.hostname)) continue;
-    const host = HOST_SPECS[w.hostname];
+    const key = canonicalHost(w.hostname);
+    if (byHost.has(key)) continue;
+    const host = HOST_SPECS[key];
     const gpuLabel = hasGPU(w)
       ? `${w.gpu_model}${w.gpu_vram_gb ? ` · ${w.gpu_vram_gb}G` : ""}`
       : null;
-    byHost.set(w.hostname, {
+    byHost.set(key, {
       gpu: gpuLabel,
       compute: gpuTflops(w.gpu_model) ?? host?.compute ?? null,
       memBw: host?.memBw ?? null,
@@ -1159,10 +1177,13 @@ export default function Nodes() {
   // not device class. Device class is still derived (from the first worker
   // on that host) so the rack gets the right accent color, icon, and class
   // label; it just becomes a secondary descriptor instead of the group key.
+  // canonicalHost() collapses HOST_ALIASES so multiple compose stacks on
+  // one physical machine don't show up as separate racks.
   const groups = useMemo(() => {
     const buckets = new Map<string, { hostname: string; cls: DeviceClass; members: Worker[] }>();
     for (const w of workers) {
-      const host = w.hostname || w.id || "unknown";
+      const raw = w.hostname || w.id || "unknown";
+      const host = canonicalHost(raw);
       let bucket = buckets.get(host);
       if (!bucket) {
         bucket = { hostname: host, cls: classify(w), members: [] };
