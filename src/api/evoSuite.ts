@@ -21,7 +21,13 @@
 import axios, { type AxiosInstance } from "axios";
 import { useQuery } from "@tanstack/react-query";
 
-const EVO_BASE = import.meta.env.VITE_EVO_API_BASE ?? "/evo-api";
+// `||` (not `??`) so an empty-string env at build time falls through
+// to the default. Vite sometimes substitutes undefined env vars as
+// "" (notably when a project-level .env exists but doesn't define the
+// key); `??` keeps that empty string, axios ends up with baseURL=""
+// and requests go to bare /api/v1/* which Caddy doesn't route to
+// evo-api by default. `||` falls through on any falsy value.
+const EVO_BASE = import.meta.env.VITE_EVO_API_BASE || "/evo-api";
 
 const evoHttp: AxiosInstance = axios.create({
   baseURL: EVO_BASE,
