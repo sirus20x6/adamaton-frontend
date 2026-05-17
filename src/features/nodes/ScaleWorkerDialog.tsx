@@ -21,7 +21,7 @@ import { Loader2, Plus } from "lucide-react";
 import {
   type ScalableEntry,
   useNodeScalable,
-  useScaleService,
+  useSpinUpService,
 } from "@/api/nodes";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,7 +55,7 @@ export function ScaleWorkerDialog({
   accentBorder,
 }: Props) {
   const scalable = useNodeScalable(hostname, open);
-  const scale = useScaleService(hostname);
+  const scale = useSpinUpService(hostname);
 
   // Selected service: default to the first scalable entry as soon as
   // the response lands. Reset on dialog close so a reopen shows the
@@ -100,7 +100,11 @@ export function ScaleWorkerDialog({
   const handleConfirm = () => {
     if (!current) return;
     scale.mutate(
-      { service: current.service, replicas: current.running + delta },
+      {
+        service: current.service,
+        replicas: current.running + delta,
+        provisioned: current.provisioned,
+      },
       {
         onSuccess: () => {
           onOpenChange(false);
@@ -187,11 +191,21 @@ export function ScaleWorkerDialog({
               >
                 {entries.map((e) => (
                   <option key={e.service} value={e.service}>
-                    {e.service} · running {e.running}
+                    {e.service}
+                    {e.provisioned
+                      ? ` · running ${e.running}`
+                      : " · ✨ new on this host"}
                   </option>
                 ))}
               </select>
             </label>
+
+            {current && !current.provisioned && (
+              <div className="rounded border border-sky-500/30 bg-sky-500/10 px-3 py-2 font-mono text-[11px] text-sky-200">
+                First spin will render a compose block + pull the image
+                (~30s). Subsequent spins of this worker are fast.
+              </div>
+            )}
 
             {/* Delta picker */}
             <div className="flex items-center justify-between gap-3">
@@ -283,12 +297,13 @@ export function ScaleWorkerDialog({
           >
             {scale.isPending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Spinning
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                {current && !current.provisioned ? "Provisioning" : "Spinning"}
               </>
+            ) : current && !current.provisioned ? (
+              <>Provision +{delta}</>
             ) : (
-              <>
-                Spin up {current ? `+${delta}` : ""}
-              </>
+              <>Spin up {current ? `+${delta}` : ""}</>
             )}
           </Button>
         </DialogFooter>

@@ -20,6 +20,13 @@ export interface ScalableEstimate {
 export interface ScalableEntry {
   service: string;
   running: number;
+  /**
+   * True when the host's docker-compose.yml already declares this
+   * service (a /scale call works). False when only the deploy-agent's
+   * catalog knows about it (must go through /provision first, which
+   * renders a service block into docker-compose.workers.yml).
+   */
+  provisioned: boolean;
   estimate: ScalableEstimate;
 }
 
@@ -73,6 +80,16 @@ export const nodesApi = {
       `${EVO_BASE}/nodes/${encodeURIComponent(host)}/scale?service=${encodeURIComponent(service)}&replicas=${replicas}`,
       { method: "POST" },
     ).then(jsonOrThrow<ScaleResult>),
+
+  // For workers that don't yet have a service block in the host's
+  // docker-compose.yml. The agent renders the block from its catalog
+  // before bringing the container up. Returns the same shape as scale
+  // with an extra `provisioned: true` field on the success path.
+  provision: (host: string, service: string, replicas: number) =>
+    fetch(
+      `${EVO_BASE}/nodes/${encodeURIComponent(host)}/provision?service=${encodeURIComponent(service)}&replicas=${replicas}`,
+      { method: "POST" },
+    ).then(jsonOrThrow<ScaleResult>),
 };
 
 // React Query bindings — keep them next to the raw API so the Nodes
@@ -106,6 +123,27 @@ export function useScaleService(host: string) {
       // The Nodes page reads /workers separately; bump that too so the
       // new container shows up as a row without waiting for the 5s
       // refetch tick.
+      qc.invalidateQueries({ queryKey: ["nodes", "workers"] });
+    },
+  });
+}
+
+// useSpinUpService dispatches to /provision or /scale based on the
+// picked entry's `provisioned` flag. The dialog uses this so its
+// onClick can stay agnostic of which mode the worker is in.
+export function useSpinUpService(host: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    ScaleResult,
+    Error,
+    { service: string; replicas: number; provisioned: boolean }
+  >({
+    mutationFn: ({ service, replicas, provisioned }) =>
+      provisioned
+        ? nodesApi.scale(host, service, replicas)
+        : nodesApi.provision(host, service, replicas),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: nodeKeys.scalable(host) });
       qc.invalidateQueries({ queryKey: ["nodes", "workers"] });
     },
   });
