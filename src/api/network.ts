@@ -391,6 +391,69 @@ export function useFinalizerHealth(refetchInterval = 30_000) {
   });
 }
 
+// --- stealthmonitor (Phase 8.2) ----------------------------------------
+
+/**
+ * Announcement mirrors p2p/eth/stealthmonitor.Announcement — one
+ * ERC-5564 Announce event as seen by the indexer. The shape matches
+ * what cmd/adamaton-wallet stealth scan consumes via --input, so a
+ * worker can pipe /announcements directly into the scanner.
+ *
+ * stealth_address, caller, and tx are 0x-prefixed lowercase hex.
+ * ephemeral_pubkey is 33-byte compressed secp256k1 (66 hex chars +
+ * '0x'). metadata's first byte is the 1-byte view tag for scheme
+ * 0x01; remaining bytes are application-defined.
+ */
+export type StealthAnnouncement = {
+  scheme_id: number;
+  stealth_address: string;
+  caller: string;
+  ephemeral_pubkey: string;
+  metadata: string;
+  observed_at: string; // RFC3339 UTC
+  block: number;
+  tx: string;
+};
+
+export const stealthApi = {
+  health: () => api.get<MonitorHealth>("/network-api/stealth/health"),
+  announcements: () =>
+    api.get<StealthAnnouncement[]>("/network-api/stealth/announcements"),
+};
+
+export const STEALTH_HEALTH_QUERY_KEY = [
+  "network",
+  "stealth",
+  "health",
+] as const;
+export const STEALTH_ANNOUNCEMENTS_QUERY_KEY = [
+  "network",
+  "stealth",
+  "announcements",
+] as const;
+
+export function useStealthHealth(refetchInterval = 30_000) {
+  return useQuery<MonitorHealth, Error>({
+    queryKey: STEALTH_HEALTH_QUERY_KEY,
+    queryFn: stealthApi.health,
+    refetchInterval,
+    refetchIntervalInBackground: false,
+    staleTime: refetchInterval,
+    retry: 1,
+  });
+}
+
+export function useStealthAnnouncements(refetchInterval = 10_000) {
+  return useQuery<StealthAnnouncement[], Error>({
+    queryKey: STEALTH_ANNOUNCEMENTS_QUERY_KEY,
+    queryFn: stealthApi.announcements,
+    refetchInterval,
+    refetchIntervalInBackground: false,
+    staleTime: refetchInterval,
+    retry: 1,
+  });
+}
+
 // --- formatters used by Network pages -----------------------------------
 
 /**

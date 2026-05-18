@@ -33,6 +33,8 @@ export default defineConfig({
         process.env.VITE_PROXY_LEDGER_MONITOR ?? "http://localhost:9277";
       const finalizerTarget =
         process.env.VITE_PROXY_FINALIZER ?? "http://localhost:9278";
+      const stealthMonitorTarget =
+        process.env.VITE_PROXY_STEALTH_MONITOR ?? "http://localhost:9279";
       return {
         "/v3": { target, changeOrigin: true },
         "/platform": { target, changeOrigin: true },
@@ -62,6 +64,11 @@ export default defineConfig({
           target: finalizerTarget,
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/network-api\/finalizer/, ""),
+        },
+        "/network-api/stealth": {
+          target: stealthMonitorTarget,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/network-api\/stealth/, ""),
         },
       };
     })(),
