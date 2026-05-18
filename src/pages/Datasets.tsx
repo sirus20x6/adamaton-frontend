@@ -447,7 +447,7 @@ function ImportDialog({
       {
         dataset_id: datasetID,
         source_kind: sourceKind,
-        source_ref: sourceRef.trim(),
+        source_ref: normalizeSourceRef(sourceKind, sourceRef),
         notes: notes.trim() || undefined,
       },
       {
@@ -576,4 +576,28 @@ function ImportDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// normalizeSourceRef strips the common footguns that the dataset-mgr
+// importers don't accept verbatim:
+//   - all internal whitespace (humans paste "owner / repo" by accident)
+//   - "https://huggingface.co/datasets/" / "https://www.kaggle.com/datasets/"
+//     prefixes when the user grabs the URL from their browser bar
+//
+// Keeps the ref unchanged once normalized so callers can inspect the
+// canonical form in failure messages.
+function normalizeSourceRef(kind: DatasetSourceKind, raw: string): string {
+  let v = raw.trim();
+  if (kind === "huggingface") {
+    v = v.replace(/^https?:\/\/(www\.)?huggingface\.co\/datasets\//i, "");
+  } else if (kind === "kaggle") {
+    v = v.replace(/^https?:\/\/(www\.)?kaggle\.com\/datasets\//i, "");
+  }
+  // Strip ALL whitespace (including non-breaking) — never legal in a
+  // hub ref. Local paths can legitimately contain spaces, so leave the
+  // local kind alone.
+  if (kind !== "local") {
+    v = v.replace(/\s+/g, "");
+  }
+  return v;
 }
