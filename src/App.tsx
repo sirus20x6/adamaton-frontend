@@ -26,6 +26,8 @@ const NanoResearch = lazy(() => import("@/pages/NanoResearch"));
 const Nodes = lazy(() => import("@/pages/Nodes"));
 const Datasets = lazy(() => import("@/pages/Datasets"));
 const MCPManager = lazy(() => import("@/pages/MCPManager"));
+const NetworkHome = lazy(() => import("@/pages/network/NetworkHome"));
+const NetworkOutcomes = lazy(() => import("@/pages/network/Outcomes"));
 const Schedules = lazy(() => import("@/pages/Schedules"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -209,6 +211,22 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <MCPManager />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkHome />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/outcomes"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkOutcomes />
                 </Suspense>
               }
             />
