@@ -1101,7 +1101,7 @@ function FleetHeader({
           : "amber";
 
   return (
-    <header className="relative overflow-hidden rounded-xl border border-border bg-card/40 px-6 py-5">
+    <header className="relative rounded-xl border border-border bg-card/40 px-6 py-5">
       <div className="relative flex items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="relative flex h-12 w-12 items-center justify-center rounded-lg border border-sky-500/25 bg-sky-500/10">
