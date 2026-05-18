@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import {
   Activity,
   Coins,
+  Eye,
   Gavel,
   Heart,
   HelpCircle,
@@ -96,6 +97,14 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "Aggregated /health from audit-monitor, ledger-monitor, federation-monitor, finalize-bot.",
     icon: Heart,
+    status: "live",
+  },
+  {
+    to: "/network/announcements",
+    label: "Stealth announcements",
+    blurb:
+      "Phase 8.2 ERC-5564 Announce log — every stealth payment fires one. Workers scan locally with their viewing key.",
+    icon: Eye,
     status: "live",
   },
 ];

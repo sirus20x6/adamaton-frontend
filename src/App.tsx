@@ -34,6 +34,9 @@ const NetworkPools = lazy(() => import("@/pages/network/Pools"));
 const NetworkStakes = lazy(() => import("@/pages/network/Stakes"));
 const NetworkJobs = lazy(() => import("@/pages/network/Jobs"));
 const NetworkHealth = lazy(() => import("@/pages/network/Health"));
+const NetworkAnnouncements = lazy(
+  () => import("@/pages/network/Announcements"),
+);
 const Schedules = lazy(() => import("@/pages/Schedules"));
 const Health = lazy(() => import("@/pages/Health"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -282,6 +285,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <NetworkHealth />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/announcements"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkAnnouncements />
                 </Suspense>
               }
             />
