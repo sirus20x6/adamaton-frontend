@@ -107,3 +107,26 @@ The Home page reads from these endpoints on the evo apiserver:
 
 Profiling graphs (sparklines, speedup-over-time) come later — the
 section heading "coming next" at the bottom of Home is the placeholder.
+
+## Schedules page (`/schedules`)
+
+Separate from Home: a CRUD view over Temporal recurring schedules
+(delegations + arbitrary workflow crons). Wrappers in
+`src/api/temporal.ts`; page in `src/pages/Schedules.tsx`; create/edit
+dialog in `src/features/schedules/ScheduleDialog.tsx`. Backed by the
+platform apiserver:
+
+| action | endpoint |
+|---|---|
+| list | `GET /api/v1/schedules` |
+| describe (with recent runs) | `GET /api/v1/schedules/{id}` |
+| create | `POST /api/v1/schedules` |
+| update (cron + note only; action is immutable in v1) | `PUT /api/v1/schedules/{id}` |
+| delete (idempotent — 204 on NotFound) | `DELETE /api/v1/schedules/{id}` |
+| pause / resume | `POST /api/v1/schedules/{id}/{pause,unpause}` |
+| trigger now | `POST /api/v1/schedules/{id}/trigger` |
+
+Two create-payload shapes via a `kind` discriminator: `delegation`
+(the delegator MCP's `schedule_recurring_task` fields — prompt,
+difficulty, priority, agent_hint, etc.) and `generic` (workflow name
++ task queue + JSON args, for cron-ing any registered workflow).
