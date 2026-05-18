@@ -28,6 +28,11 @@ const Datasets = lazy(() => import("@/pages/Datasets"));
 const MCPManager = lazy(() => import("@/pages/MCPManager"));
 const NetworkHome = lazy(() => import("@/pages/network/NetworkHome"));
 const NetworkOutcomes = lazy(() => import("@/pages/network/Outcomes"));
+const NetworkCreditLines = lazy(() => import("@/pages/network/CreditLines"));
+const NetworkReputations = lazy(() => import("@/pages/network/Reputations"));
+const NetworkPools = lazy(() => import("@/pages/network/Pools"));
+const NetworkStakes = lazy(() => import("@/pages/network/Stakes"));
+const NetworkJobs = lazy(() => import("@/pages/network/Jobs"));
 const Schedules = lazy(() => import("@/pages/Schedules"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -227,6 +232,46 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <NetworkOutcomes />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/credit-lines"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkCreditLines />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/reputations"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkReputations />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/pools"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkPools />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/stakes"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkStakes />
+                </Suspense>
+              }
+            />
+            <Route
+              path="network/jobs"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NetworkJobs />
                 </Suspense>
               }
             />
