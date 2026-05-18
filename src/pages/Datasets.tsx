@@ -31,6 +31,7 @@ import {
   useDatasets,
   useImportDataset,
 } from "@/api/datasets";
+import { DatasetDetailSheet } from "@/features/datasets/DatasetDetailSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +79,8 @@ export default function Datasets() {
   const [registerOpen, setRegisterOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [importTarget, setImportTarget] = React.useState<string | null>(null);
+  const [detailID, setDetailID] = React.useState<string | null>(null);
+  const detailOpen = !!detailID;
 
   const rows = datasets.data ?? [];
 
@@ -157,6 +160,7 @@ export default function Datasets() {
                 <DatasetRow
                   key={d.id}
                   d={d}
+                  onOpen={() => setDetailID(d.id)}
                   onImport={() => {
                     setImportTarget(d.id);
                     setImportOpen(true);
@@ -178,14 +182,32 @@ export default function Datasets() {
         datasets={rows}
         initialDatasetID={importTarget}
       />
+      <DatasetDetailSheet
+        datasetID={detailID}
+        open={detailOpen}
+        onOpenChange={(v) => {
+          if (!v) setDetailID(null);
+        }}
+      />
     </div>
   );
 }
 
-function DatasetRow({ d, onImport }: { d: Dataset; onImport: () => void }) {
+function DatasetRow({
+  d,
+  onImport,
+  onOpen,
+}: {
+  d: Dataset;
+  onImport: () => void;
+  onOpen: () => void;
+}) {
   const v = d.latest_version;
   return (
-    <tr className="border-b border-border/40 last:border-b-0 hover:bg-white/[0.02]">
+    <tr
+      className="cursor-pointer border-b border-border/40 last:border-b-0 hover:bg-white/[0.02]"
+      onClick={onOpen}
+    >
       <td className="px-4 py-3">
         <div className="font-mono text-sm font-semibold text-slate-100">{d.id}</div>
         {d.display_name !== d.id && (
@@ -226,7 +248,14 @@ function DatasetRow({ d, onImport }: { d: Dataset; onImport: () => void }) {
         {v?.format ?? "—"}
       </td>
       <td className="px-4 py-3 text-right">
-        <Button size="sm" variant="ghost" onClick={onImport}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            onImport();
+          }}
+        >
           <Download className="mr-1.5 h-3.5 w-3.5" />
           Import
         </Button>
