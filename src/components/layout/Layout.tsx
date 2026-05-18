@@ -4,6 +4,7 @@ import {
   BookOpen,
   Brain,
   Cable,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Dna,
@@ -86,6 +87,10 @@ const NAV: readonly NavItem[] = [
   // "long-jobs" cluster below Evolution because it surfaces which boxes
   // are actually executing those jobs.
   { to: "/nodes", label: "Nodes", icon: Server },
+  // Schedules = recurring Temporal schedules across the namespace (delegator
+  // recurring tasks, generic workflow crons). Sits next to Nodes since
+  // both surface what the cluster is doing on a fixed cadence.
+  { to: "/schedules", label: "Schedules", icon: Calendar },
   // MCP Manager talks to a local workstation daemon (ldr-mcp-manager.service)
   // to manage MCP servers configured in Claude Code, Codex, and Gemini.
   // Lives next to Settings since it's primarily a config surface.

@@ -25,6 +25,7 @@ const Skills = lazy(() => import("@/pages/Skills"));
 const NanoResearch = lazy(() => import("@/pages/NanoResearch"));
 const Nodes = lazy(() => import("@/pages/Nodes"));
 const MCPManager = lazy(() => import("@/pages/MCPManager"));
+const Schedules = lazy(() => import("@/pages/Schedules"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -199,6 +200,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <MCPManager />
+                </Suspense>
+              }
+            />
+            <Route
+              path="schedules"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Schedules />
                 </Suspense>
               }
             />
