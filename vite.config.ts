@@ -20,6 +20,19 @@ export default defineConfig({
       // call /evo-api/api/v1/memory/... and the upstream sees /api/v1/...
       const evoApiTarget =
         process.env.VITE_PROXY_EVO_API ?? "http://localhost:9123";
+      // v1.0 on-chain observability daemons. Each daemon listens on its
+      // own loopback port (see core/cmd/*/README.md). The page calls
+      // /network-api/<daemon>/<path> and we rewrite to the daemon's
+      // native path so each daemon's handler doesn't have to be
+      // namespace-aware.
+      const auditMonitorTarget =
+        process.env.VITE_PROXY_AUDIT_MONITOR ?? "http://localhost:9275";
+      const federationMonitorTarget =
+        process.env.VITE_PROXY_FEDERATION_MONITOR ?? "http://localhost:9276";
+      const ledgerMonitorTarget =
+        process.env.VITE_PROXY_LEDGER_MONITOR ?? "http://localhost:9277";
+      const finalizerTarget =
+        process.env.VITE_PROXY_FINALIZER ?? "http://localhost:9278";
       return {
         "/v3": { target, changeOrigin: true },
         "/platform": { target, changeOrigin: true },
@@ -29,6 +42,26 @@ export default defineConfig({
           target: evoApiTarget,
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/evo-api/, ""),
+        },
+        "/network-api/audit": {
+          target: auditMonitorTarget,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/network-api\/audit/, ""),
+        },
+        "/network-api/federation": {
+          target: federationMonitorTarget,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/network-api\/federation/, ""),
+        },
+        "/network-api/ledger": {
+          target: ledgerMonitorTarget,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/network-api\/ledger/, ""),
+        },
+        "/network-api/finalizer": {
+          target: finalizerTarget,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/network-api\/finalizer/, ""),
         },
       };
     })(),

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Activity,
   BookMarked,
   BookOpen,
   Brain,
@@ -97,6 +98,13 @@ const NAV: readonly NavItem[] = [
   // recurring tasks, generic workflow crons). Sits next to Nodes since
   // both surface what the cluster is doing on a fixed cadence.
   { to: "/schedules", label: "Schedules", icon: Calendar },
+  // Network = read-only public dashboard for the v1.0/v1.1 on-chain
+  // observability surfaces (audit-monitor, ledger-monitor,
+  // federation-monitor, finalize-bot). Polls each daemon's JSON
+  // endpoints via the /network-api/* vite proxy. Sits with the
+  // "fleet/cluster state" cluster (Nodes / Datasets / Schedules) since
+  // it surfaces what the on-chain contracts are doing in real time.
+  { to: "/network", label: "Network", icon: Activity },
   // MCP Manager talks to a local workstation daemon (ldr-mcp-manager.service)
   // to manage MCP servers configured in Claude Code, Codex, and Gemini.
   // Lives next to Settings since it's primarily a config surface.
