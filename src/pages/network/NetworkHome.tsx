@@ -96,7 +96,7 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "Aggregated /health from audit-monitor, ledger-monitor, federation-monitor, finalize-bot.",
     icon: Heart,
-    status: "planned",
+    status: "live",
   },
 ];
 
