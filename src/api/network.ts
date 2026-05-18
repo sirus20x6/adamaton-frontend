@@ -361,6 +361,36 @@ export function useJobs(refetchInterval = 10_000) {
   });
 }
 
+// --- finalize-bot --------------------------------------------------------
+
+/**
+ * Finalize-bot's HTTP surface is a thin /health + /metrics (the bot is
+ * a writer, not an indexer — there's no per-event store to expose).
+ * Until the daemon is deployed, this hook will simply error out and the
+ * Health page renders it as "Daemon unreachable" with the same red
+ * pill the other daemons use when offline.
+ */
+export const finalizerApi = {
+  health: () => api.get<MonitorHealth>("/network-api/finalizer/health"),
+};
+
+export const FINALIZER_HEALTH_QUERY_KEY = [
+  "network",
+  "finalizer",
+  "health",
+] as const;
+
+export function useFinalizerHealth(refetchInterval = 30_000) {
+  return useQuery<MonitorHealth, Error>({
+    queryKey: FINALIZER_HEALTH_QUERY_KEY,
+    queryFn: finalizerApi.health,
+    refetchInterval,
+    refetchIntervalInBackground: false,
+    staleTime: refetchInterval,
+    retry: 1,
+  });
+}
+
 // --- formatters used by Network pages -----------------------------------
 
 /**
