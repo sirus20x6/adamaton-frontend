@@ -49,7 +49,7 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "Per-creditor credit extended / repaid; outstanding exposure between any creditor↔debtor pair.",
     icon: Coins,
-    status: "planned",
+    status: "live",
   },
   {
     to: "/network/reputations",
@@ -57,14 +57,14 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "Per-node reputation: earned score, defaults, donations, identity-burn status.",
     icon: Sigma,
-    status: "planned",
+    status: "live",
   },
   {
     to: "/network/pools",
     label: "Pools",
     blurb: "Federation pool registry — operator, tax bps, current members.",
     icon: Layers,
-    status: "planned",
+    status: "live",
   },
   {
     to: "/network/stakes",
@@ -72,7 +72,7 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "Per-node deposit/withdraw history from the Ledger contract — running available + locked totals.",
     icon: Wallet,
-    status: "planned",
+    status: "live",
   },
   {
     to: "/network/jobs",
@@ -80,7 +80,7 @@ const SUBSECTIONS: readonly SubsectionCard[] = [
     blurb:
       "On-chain job lifecycle (lock → settle / slash). Cross-references audit outcomes by jobId.",
     icon: ScrollText,
-    status: "planned",
+    status: "live",
   },
   {
     to: "/network/pending-finalizations",
