@@ -12,6 +12,7 @@ import {
   Dna,
   FlaskConical,
   FlaskRound,
+  HeartPulse,
   Home as HomeIcon,
   Library as LibraryIcon,
   Menu,
@@ -34,7 +35,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useSystemHealth } from "@/api/system";
+import { useFleetHealth, worstStatus } from "@/api/health";
 import { useConnectionStore } from "@/features/research/connectionStore";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +90,11 @@ const NAV: readonly NavItem[] = [
   // "long-jobs" cluster below Evolution because it surfaces which boxes
   // are actually executing those jobs.
   { to: "/nodes", label: "Nodes", icon: Server },
+  // Fleet health — capability/role/instance rollup. Sits with Nodes
+  // (the per-worker LED view) since both surface "what's actually
+  // running" but from different angles: Nodes shows the workers,
+  // Health shows the services + quorum + capability bundles.
+  { to: "/health", label: "Health", icon: HeartPulse },
   // Datasets = evolve/dataset-manager catalog. Sits with the long-jobs
   // cluster because each "import" + "transform" runs as a Temporal
   // workflow on the dataset-mgr queue (visible on Nodes as the
@@ -133,23 +139,24 @@ function writeCollapsed(value: boolean): void {
 
 function StatusPill() {
   const status = useConnectionStore((s) => s.status);
-  const deps = useConnectionStore((s) => s.deps);
-  const lastChecked = useConnectionStore((s) => s.lastChecked);
+  const fleet = useFleetHealth();
 
   const wsLive = status === "open";
   const wsConnecting = status === "connecting";
-  const allDepsOk =
-    lastChecked > 0 && deps.postgres && deps.redis && deps.sidecar;
-  const anyDepDown =
-    lastChecked > 0 && (!deps.postgres || !deps.redis || !deps.sidecar);
+
+  const fleetStatus = fleet.data
+    ? worstStatus(fleet.data.capabilities.map((c) => c.status))
+    : "unknown";
+  const allCapsOk = fleetStatus === "ok";
+  const anyCapDown = fleetStatus === "degraded" || fleetStatus === "offline";
 
   // Resolve to one of: live | connecting | degraded | idle
   let kind: "live" | "connecting" | "degraded" | "idle" = "idle";
-  if (wsLive || (status === "idle" && allDepsOk)) {
+  if (wsLive || (status === "idle" && allCapsOk)) {
     kind = "live";
   } else if (wsConnecting) {
     kind = "connecting";
-  } else if (anyDepDown) {
+  } else if (anyCapDown) {
     kind = "degraded";
   }
 
@@ -268,24 +275,9 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-/**
- * Polls `/platform/health/ready` once mounted and pushes the result into
- * the connection store so any header indicator stays accurate as the user
- * navigates between routes.
- */
-function HealthPoller() {
-  const { data, isSuccess, dataUpdatedAt } = useSystemHealth(30_000);
-  const setHealth = useConnectionStore((s) => s.setHealth);
-  const markChecked = useConnectionStore((s) => s.markChecked);
-
-  useEffect(() => {
-    if (!isSuccess || !data) return;
-    setHealth(data.deps);
-    markChecked();
-  }, [isSuccess, data, dataUpdatedAt, setHealth, markChecked]);
-
-  return null;
-}
+// HealthPoller removed 2026-05-18 — useFleetHealth() in SystemHealthWidget
+// + StatusPill is the single source of truth now. The old /platform/health/ready
+// poll wrote into connectionStore.deps; nothing reads those fields anymore.
 
 export function Layout() {
   const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
@@ -297,8 +289,6 @@ export function Layout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <HealthPoller />
-
       {/* Desktop sidebar (md+) */}
       <aside
         className={cn(

@@ -35,6 +35,7 @@ const NetworkStakes = lazy(() => import("@/pages/network/Stakes"));
 const NetworkJobs = lazy(() => import("@/pages/network/Jobs"));
 const NetworkHealth = lazy(() => import("@/pages/network/Health"));
 const Schedules = lazy(() => import("@/pages/Schedules"));
+const Health = lazy(() => import("@/pages/Health"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -289,6 +290,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <Schedules />
+                </Suspense>
+              }
+            />
+            <Route
+              path="health"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Health />
                 </Suspense>
               }
             />
