@@ -7,6 +7,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Database,
   Dna,
   FlaskConical,
   FlaskRound,
@@ -87,6 +88,11 @@ const NAV: readonly NavItem[] = [
   // "long-jobs" cluster below Evolution because it surfaces which boxes
   // are actually executing those jobs.
   { to: "/nodes", label: "Nodes", icon: Server },
+  // Datasets = evolve/dataset-manager catalog. Sits with the long-jobs
+  // cluster because each "import" + "transform" runs as a Temporal
+  // workflow on the dataset-mgr queue (visible on Nodes as the
+  // dataset-worker rack member).
+  { to: "/datasets", label: "Datasets", icon: Database },
   // Schedules = recurring Temporal schedules across the namespace (delegator
   // recurring tasks, generic workflow crons). Sits next to Nodes since
   // both surface what the cluster is doing on a fixed cadence.

@@ -24,6 +24,7 @@ const Memory = lazy(() => import("@/pages/Memory"));
 const Skills = lazy(() => import("@/pages/Skills"));
 const NanoResearch = lazy(() => import("@/pages/NanoResearch"));
 const Nodes = lazy(() => import("@/pages/Nodes"));
+const Datasets = lazy(() => import("@/pages/Datasets"));
 const MCPManager = lazy(() => import("@/pages/MCPManager"));
 const Schedules = lazy(() => import("@/pages/Schedules"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -192,6 +193,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <Nodes />
+                </Suspense>
+              }
+            />
+            <Route
+              path="datasets"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Datasets />
                 </Suspense>
               }
             />
