@@ -218,8 +218,50 @@ function hasGPU(w: Worker): boolean {
   return Boolean(w.gpu_model && (w.gpu_count ?? 0) > 0);
 }
 
-function isOnline(w: Worker): boolean {
-  return w.status === "online" || w.status === "active";
+// ─────────────────────────────────────────────────────────────────────
+// Heartbeat staleness — a crashed worker stops heartbeating but the API
+// may keep reporting status:"online" until it's reaped. Derive liveness
+// client-side from heartbeat age so the orb goes amber → red instead of
+// staying green forever (issue #124).
+//
+//   fresh   (< 90s)   → trust backend status (online/active)
+//   stale   (≥ 90s)   → amber          (matches backend heartbeat_max_age: 90s)
+//   offline (≥ 450s)  → red            (5× the stale threshold)
+// ─────────────────────────────────────────────────────────────────────
+const STALE_MS = 90_000;
+const OFFLINE_MS = STALE_MS * 5; // 450_000 — 7.5 min with no heartbeat → offline
+
+function heartbeatDate(w: Worker): Date | null {
+  const raw = w.last_heartbeat ?? w.last_heartbeat_at;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// effectiveStatus folds the client-side heartbeat-age calc into the
+// reported status. A backend-supplied non-alive status (stale/offline/
+// draining/maintenance/banned) is always authoritative and passes through
+// untouched. For a worker the backend still calls online/active we
+// downgrade it to "stale"/"offline" once its heartbeat ages past the
+// thresholds. If there's no heartbeat to reason about, the reported
+// status stands.
+function effectiveStatus(w: Worker, now: number): string {
+  // Trust any explicit non-alive signal from the backend (incl. a future
+  // derived "status" field) — it knows more than a wall-clock diff does.
+  if (w.status && w.status !== "online" && w.status !== "active") {
+    return w.status;
+  }
+  const hb = heartbeatDate(w);
+  if (!hb) return w.status;
+  const age = now - hb.getTime();
+  if (age >= OFFLINE_MS) return "offline";
+  if (age >= STALE_MS) return "stale";
+  return w.status;
+}
+
+function isOnline(w: Worker, now: number): boolean {
+  const s = effectiveStatus(w, now);
+  return s === "online" || s === "active";
 }
 
 function classify(w: Worker): DeviceClass {
@@ -701,11 +743,12 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
     ? ""
     : `${ramUsed!.toFixed(1)}/${ramTotal}G`;
 
-  const hbRaw = w.last_heartbeat ?? w.last_heartbeat_at;
-  const hb = hbRaw ? new Date(hbRaw) : null;
-  const hbValid = hb && !Number.isNaN(hb.getTime()) ? hb : null;
+  const hbValid = heartbeatDate(w);
 
-  const tone = toneFor(w.status);
+  // Liveness is derived from heartbeat age (issue #124): a crashed worker
+  // the backend still calls "online" gets shown amber/red here.
+  const status = effectiveStatus(w, now);
+  const tone = toneFor(status);
 
   // identity = worker TYPE (what it does). hostname = WHERE it runs.
   const identity = w.identity ?? w.id.split("@")[0] ?? w.id;
@@ -723,7 +766,7 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
 
       {/* Identity — hero column */}
       <div className="col-span-4 flex min-w-0 items-center gap-3">
-        <StatusOrb status={w.status} />
+        <StatusOrb status={status} />
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {/* Identity text block */}
           <div className="min-w-0 flex-1">
@@ -792,10 +835,12 @@ function NodeRow({ w, accent, now }: NodeRowProps) {
             title={`heartbeat${w.declared_queues?.length ? ` · ${w.declared_queues.join(", ")}` : ""}`}
           >
             <span
-              className="block h-2 w-2 rounded-full bg-emerald-400/90"
+              className={cn("block h-2 w-2 rounded-full", tone.dot)}
               style={{
-                animation: "node-fade 3.4s ease-in-out infinite",
-                boxShadow: "0 0 4px rgba(52,211,153,0.5)",
+                animation: tone.alive
+                  ? "node-fade 3.4s ease-in-out infinite"
+                  : undefined,
+                boxShadow: `0 0 4px rgba(${tone.glowRGB},0.5)`,
               }}
             />
             <span className="tabular-nums">
@@ -829,7 +874,7 @@ interface GroupRackProps {
 
 function GroupRack({ cls, hostname, members, rackId, now }: GroupRackProps) {
   const Icon = cls.Icon;
-  const onlineCount = members.filter(isOnline).length;
+  const onlineCount = members.filter((m) => isOnline(m, now)).length;
   const allOnline = onlineCount === members.length;
   const anyOnline = onlineCount > 0;
   const specs = rackSpecs(members);
@@ -1193,8 +1238,10 @@ export default function Nodes() {
     }
     for (const bucket of buckets.values()) {
       bucket.members.sort((a, b) => {
-        const sa = STATUS_ORDER[a.status] ?? 9;
-        const sb = STATUS_ORDER[b.status] ?? 9;
+        // Sort by *derived* status so a worker that just went stale/offline
+        // sinks below its still-live siblings (issue #124).
+        const sa = STATUS_ORDER[effectiveStatus(a, now)] ?? 9;
+        const sb = STATUS_ORDER[effectiveStatus(b, now)] ?? 9;
         if (sa !== sb) return sa - sb;
         return (a.identity ?? a.id).localeCompare(b.identity ?? b.id);
       });
@@ -1210,12 +1257,12 @@ export default function Nodes() {
       if (ra !== rb) return ra - rb;
       return a.hostname.localeCompare(b.hostname);
     });
-  }, [workers]);
+  }, [workers, now]);
 
   const aggregates = useMemo(() => {
     // Nodes / online are per-worker — each row in the page counts.
     const total = workers.length;
-    const online = workers.filter(isOnline).length;
+    const online = workers.filter((w) => isOnline(w, now)).length;
 
     // RAM and CPU% are *host* properties, not worker properties: every
     // worker on a host samples the same /proc/meminfo + /proc/stat, so
@@ -1243,7 +1290,7 @@ export default function Nodes() {
       ramUsed,
       ramTotal,
     };
-  }, [workers]);
+  }, [workers, now]);
 
   return (
     <div className="flex h-full flex-col gap-5 p-6">
