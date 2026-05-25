@@ -398,20 +398,12 @@ interface HostSpec {
   storage?: string;
 }
 
-// HOST_ALIASES collapses hostnames that name the same physical box.
-// The blackwell GPU stack and the workstation Linux desktop run on the
-// same machine: workers from the blackwell compose dir register with
-// hostname=blackwell while workers from the workstation dir register
-// with hostname=workstation. Without this alias, the Nodes view would
-// show that one machine as two racks ("RACK·01" + "RACK·02").
-// Keep in sync with platform/dashboard/apiserver/racks.yaml aliases.
-const HOST_ALIASES: Record<string, string> = {
-  blackwell: "workstation",
-};
-function canonicalHost(h: string): string {
-  return HOST_ALIASES[h] ?? h;
-}
-
+// Workers report their node identity (w.hostname) from a single env var,
+// WORKER_HOSTNAME, set to one value per physical box (see
+// core/workerregistry). Co-located compose stacks therefore already share
+// a hostname at the source, so we group on the raw value here — no
+// display-side alias map to keep in sync with racks.yaml. (racks.yaml's
+// server-side aliases remain, but only for deploy-agent routing.)
 const HOST_SPECS: Record<string, HostSpec> = {
   pi: {
     compute: "~10 GFLOPS",
@@ -463,12 +455,12 @@ interface RackHostSpec {
 }
 
 function rackSpecs(members: Worker[]): RackHostSpec[] {
-  // Canonicalize the dedup key so a single physical machine that spans
-  // multiple compose stacks (e.g. blackwell + workstation) doesn't
-  // produce two spec rows in the same rack panel.
+  // One spec row per distinct reported hostname. Workers on one physical
+  // box already share a hostname (WORKER_HOSTNAME), so no canonicalization
+  // is needed to avoid duplicate rows.
   const byHost = new Map<string, RackHostSpec>();
   for (const w of members) {
-    const key = canonicalHost(w.hostname);
+    const key = w.hostname;
     if (byHost.has(key)) continue;
     const host = HOST_SPECS[key];
     const gpuLabel = hasGPU(w)
@@ -1222,13 +1214,12 @@ export default function Nodes() {
   // not device class. Device class is still derived (from the first worker
   // on that host) so the rack gets the right accent color, icon, and class
   // label; it just becomes a secondary descriptor instead of the group key.
-  // canonicalHost() collapses HOST_ALIASES so multiple compose stacks on
-  // one physical machine don't show up as separate racks.
+  // Co-located compose stacks share a hostname at the source
+  // (WORKER_HOSTNAME), so the raw value already yields one bucket per box.
   const groups = useMemo(() => {
     const buckets = new Map<string, { hostname: string; cls: DeviceClass; members: Worker[] }>();
     for (const w of workers) {
-      const raw = w.hostname || w.id || "unknown";
-      const host = canonicalHost(raw);
+      const host = w.hostname || w.id || "unknown";
       let bucket = buckets.get(host);
       if (!bucket) {
         bucket = { hostname: host, cls: classify(w), members: [] };
