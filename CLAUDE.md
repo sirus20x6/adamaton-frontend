@@ -28,6 +28,30 @@ pnpm lint
 
 No test suite. Typecheck + lint are the contract.
 
+### QA rationale
+
+The frontend is a React/Vite SPA with no server-side rendering and no
+integration harness. Runtime correctness is validated by two fast gates:
+
+- **Typecheck** (`pnpm typecheck` → `tsc --noEmit`): catches type errors,
+  missing props, wrong hook call signatures, and broken imports at
+  compile-time without a full build.
+- **Lint** (`pnpm lint` → `eslint . --ext ts,tsx`): enforces react-hooks
+  exhaustive-deps, react-refresh boundaries, and TypeScript-ESLint rules
+  that catch common async pitfalls (e.g. unhandled promises,
+  `@typescript-eslint/no-floating-promises`).
+
+Both gates must pass clean (zero errors, zero warnings-treated-as-errors)
+before a PR is merged. Together they substitute for the unit/integration
+test suite that a more complex SPA would carry.
+
+**e2e plan (not yet implemented):** When the platform reaches a stable API
+contract, a Playwright smoke suite should cover: (1) Library page loads and
+corpus grid renders, (2) Graph view mounts and Cytoscape canvas appears,
+(3) Research stream connects and stage chips advance. Until then, manual
+smoke-testing on the dev stack (`pnpm dev` against a local platform
+instance) is the fallback QA step.
+
 ## Gotchas
 
 - **`VITE_EVO_API_BASE` is build-time, not runtime**. Pi production builds use the empty string so Caddy proxies `/api/v1/*` to `platform.dashboard` on localhost. Workstation dev uses `http://localhost:9123`. See `EVO_SUITE_INTEGRATION.md`.

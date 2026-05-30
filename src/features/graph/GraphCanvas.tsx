@@ -21,7 +21,7 @@ import {
   type GraphResponse,
 } from "@/api/graph";
 import { Button } from "@/components/ui/button";
-import { Toaster } from "@/components/ui/toast";
+import { Toaster, useToast } from "@/components/ui/toast";
 import { ClusterControls } from "@/features/graph/ClusterControls";
 import { NodeDetailPanel } from "@/features/graph/NodeDetailPanel";
 import {
@@ -81,6 +81,7 @@ export default function GraphCanvas() {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const handleRef = React.useRef<PixiGraphHandle | null>(null);
   const detailPanelRef = React.useRef<HTMLElement | null>(null);
+  const { toast } = useToast();
 
   const communities = useQuery({
     queryKey: ["graphCommunities", corpusId, level],
@@ -187,10 +188,14 @@ export default function GraphCanvas() {
           handle.centerOn(node.id);
         }
       } catch (err) {
-        console.warn("pixi entity-select expand failed", err);
+        toast({
+          title: "Could not expand to node",
+          description: err instanceof Error ? err.message : "Entity expand failed.",
+          variant: "error",
+        });
       }
     },
-    [corpusId, queryClient, expandMode],
+    [corpusId, queryClient, expandMode, toast],
   );
 
   // Keyboard: Esc deselects, Cmd/Ctrl+0 fits, ``f`` fits.

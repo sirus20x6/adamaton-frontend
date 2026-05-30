@@ -12,7 +12,7 @@ import {
   type GraphResponse,
 } from "@/api/graph";
 import { Button } from "@/components/ui/button";
-import { Toaster } from "@/components/ui/toast";
+import { Toaster, useToast } from "@/components/ui/toast";
 import { ClusterControls } from "@/features/graph/ClusterControls";
 import { NodeDetailPanel } from "@/features/graph/NodeDetailPanel";
 import {
@@ -131,6 +131,7 @@ export function GraphView() {
 
   const { containerRef, cyRef } = useCytoscape();
   const detailPanelRef = React.useRef<HTMLElement | null>(null);
+  const { toast } = useToast();
 
   const communities = useQuery({
     queryKey: ["graphCommunities", corpusId, level],
@@ -344,10 +345,14 @@ export function GraphView() {
       } catch (err) {
         // Best-effort — selection still updates so the side panel reflects
         // the search hit even if the canvas can't reach it.
-        console.warn("entity-select expand failed", err);
+        toast({
+          title: "Could not expand to node",
+          description: err instanceof Error ? err.message : "Entity expand failed.",
+          variant: "error",
+        });
       }
     },
-    [corpusId, cyRef, queryClient, layout],
+    [corpusId, cyRef, queryClient, layout, toast],
   );
 
   // Keyboard nav: Esc deselects, Cmd/Ctrl+0 resets zoom, ``f`` fits.
