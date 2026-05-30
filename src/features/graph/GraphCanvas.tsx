@@ -22,6 +22,7 @@ import {
 } from "@/api/graph";
 import { Button } from "@/components/ui/button";
 import { Toaster, useToast } from "@/components/ui/toast";
+import { ErrorBoundary, ScopedErrorFallback } from "@/components/ErrorBoundary";
 import { ClusterControls } from "@/features/graph/ClusterControls";
 import { NodeDetailPanel } from "@/features/graph/NodeDetailPanel";
 import {
@@ -294,15 +295,22 @@ export default function GraphCanvas() {
           ) : null}
         </div>
 
-        <NodeDetailPanel
-          ref={detailPanelRef}
-          nodeId={selectedNodeId}
-          onClose={() => setSelectedNodeId(null)}
-          onSelectNeighbour={(id) => {
-            void handleEntitySelect({ id });
-          }}
-          corpusId={corpusId}
-        />
+        <ErrorBoundary
+          resetKey={selectedNodeId}
+          fallback={
+            <ScopedErrorFallback label="The node detail panel hit an error." />
+          }
+        >
+          <NodeDetailPanel
+            ref={detailPanelRef}
+            nodeId={selectedNodeId}
+            onClose={() => setSelectedNodeId(null)}
+            onSelectNeighbour={(id) => {
+              void handleEntitySelect({ id });
+            }}
+            corpusId={corpusId}
+          />
+        </ErrorBoundary>
       </div>
 
       <Toaster />

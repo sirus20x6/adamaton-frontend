@@ -434,23 +434,91 @@ export function useCorpusDocuments(
   });
 }
 
+/**
+ * Snapshot of every corpus cache we touch during an optimistic mutation, so
+ * ``onError`` can roll the UI back to exactly what it showed before. We grab
+ * the single-corpus detail entry plus both list keys (the new
+ * ``libraryKeys.corpora()`` and the legacy bare ``["corpora"]``).
+ */
+type CorpusCacheSnapshot = {
+  detail?: Corpus;
+  corpora?: Corpus[];
+  legacy?: Corpus[];
+};
+
+function snapshotCorpusCaches(
+  qc: ReturnType<typeof useQueryClient>,
+  id: string,
+): CorpusCacheSnapshot {
+  return {
+    detail: qc.getQueryData<Corpus>(libraryKeys.corpus(id)),
+    corpora: qc.getQueryData<Corpus[]>(libraryKeys.corpora()),
+    legacy: qc.getQueryData<Corpus[]>(["corpora"]),
+  };
+}
+
+function restoreCorpusCaches(
+  qc: ReturnType<typeof useQueryClient>,
+  id: string,
+  snap: CorpusCacheSnapshot | undefined,
+): void {
+  if (!snap) return;
+  qc.setQueryData(libraryKeys.corpus(id), snap.detail);
+  qc.setQueryData(libraryKeys.corpora(), snap.corpora);
+  qc.setQueryData(["corpora"], snap.legacy);
+}
+
 export function useUpdateCorpus(
   id: string,
   opts?: MutationOpts<Corpus, UpdateCorpusInput>,
 ) {
   const qc = useQueryClient();
+  const userOnMutate = opts?.onMutate;
+  const userOnError = opts?.onError;
   const userOnSuccess = opts?.onSuccess;
-  return useMutation<Corpus, Error, UpdateCorpusInput>({
+  const userOnSettled = opts?.onSettled;
+  return useMutation<Corpus, Error, UpdateCorpusInput, CorpusCacheSnapshot>({
     ...opts,
     mutationFn: (patch) => updateCorpus(id, patch),
-    onSuccess: (updated, vars, onMutateResult, ctx) => {
+    onMutate: async (patch, mctx) => {
+      // Cancel in-flight fetches so they don't clobber our optimistic write,
+      // snapshot the caches for rollback, then patch the detail + list rows
+      // in place so a rename/scope change is reflected immediately.
+      await qc.cancelQueries({ queryKey: libraryKeys.corpus(id) });
+      await qc.cancelQueries({ queryKey: libraryKeys.corpora() });
+      await qc.cancelQueries({ queryKey: ["corpora"] });
+      const snapshot = snapshotCorpusCaches(qc, id);
+
+      const applyPatch = (c: Corpus): Corpus => ({ ...c, ...patch });
+      const patchList = (list: Corpus[] | undefined) =>
+        list?.map((c) => (c.id === id ? applyPatch(c) : c));
+
+      if (snapshot.detail) {
+        qc.setQueryData(libraryKeys.corpus(id), applyPatch(snapshot.detail));
+      }
+      qc.setQueryData(libraryKeys.corpora(), patchList(snapshot.corpora));
+      qc.setQueryData(["corpora"], patchList(snapshot.legacy));
+
+      void userOnMutate?.(patch, mctx);
+      return snapshot;
+    },
+    onError: (err, patch, snapshot, mctx) => {
+      restoreCorpusCaches(qc, id, snapshot);
+      userOnError?.(err, patch, snapshot, mctx);
+    },
+    onSuccess: (updated, vars, snapshot, mctx) => {
+      // Reconcile with the server's authoritative row.
       qc.setQueryData(libraryKeys.corpus(id), updated);
+      userOnSuccess?.(updated, vars, snapshot, mctx);
+    },
+    onSettled: (data, error, vars, snapshot, mctx) => {
+      // Always refetch so any server-side derived fields (document_count,
+      // updated_at, …) land. The legacy Library page still keys off the bare
+      // ``["corpora"]`` array, so invalidate both list keys.
+      qc.invalidateQueries({ queryKey: libraryKeys.corpus(id) });
       qc.invalidateQueries({ queryKey: libraryKeys.corpora() });
-      // The legacy Library page still uses the bare ``["corpora"]`` key;
-      // invalidate both so renames land everywhere without coupling
-      // pages to the same key factory.
       qc.invalidateQueries({ queryKey: ["corpora"] });
-      userOnSuccess?.(updated, vars, onMutateResult, ctx);
+      userOnSettled?.(data, error, vars, snapshot, mctx);
     },
   });
 }
@@ -459,18 +527,44 @@ export function useDeleteCorpus(
   opts?: MutationOpts<{ ok: boolean }, string>,
 ) {
   const qc = useQueryClient();
+  const userOnMutate = opts?.onMutate;
+  const userOnError = opts?.onError;
   const userOnSuccess = opts?.onSuccess;
-  return useMutation<{ ok: boolean }, Error, string>({
-    // Mirror the rename hook and bust both ``["library", "corpora"]`` and
-    // the legacy ``["corpora"]`` key so the Library grid and any new
-    // ``useCorpora`` consumer both refresh.
+  const userOnSettled = opts?.onSettled;
+  return useMutation<{ ok: boolean }, Error, string, CorpusCacheSnapshot>({
     ...opts,
     mutationFn: (corpusId) => deleteCorpus(corpusId),
-    onSuccess: (resp, corpusId, onMutateResult, ctx) => {
+    onMutate: async (corpusId, mctx) => {
+      // Optimistically drop the corpus from both list caches so the grid
+      // updates instantly; snapshot for rollback if the delete fails.
+      await qc.cancelQueries({ queryKey: libraryKeys.corpora() });
+      await qc.cancelQueries({ queryKey: ["corpora"] });
+      await qc.cancelQueries({ queryKey: libraryKeys.corpus(corpusId) });
+      const snapshot = snapshotCorpusCaches(qc, corpusId);
+
+      const dropFromList = (list: Corpus[] | undefined) =>
+        list?.filter((c) => c.id !== corpusId);
+      qc.setQueryData(libraryKeys.corpora(), dropFromList(snapshot.corpora));
+      qc.setQueryData(["corpora"], dropFromList(snapshot.legacy));
+
+      void userOnMutate?.(corpusId, mctx);
+      return snapshot;
+    },
+    onError: (err, corpusId, snapshot, mctx) => {
+      restoreCorpusCaches(qc, corpusId, snapshot);
+      userOnError?.(err, corpusId, snapshot, mctx);
+    },
+    onSuccess: (resp, corpusId, snapshot, mctx) => {
+      qc.removeQueries({ queryKey: libraryKeys.corpus(corpusId) });
+      userOnSuccess?.(resp, corpusId, snapshot, mctx);
+    },
+    onSettled: (data, error, corpusId, snapshot, mctx) => {
+      // Mirror the rename hook and bust both ``["library", "corpora"]`` and
+      // the legacy ``["corpora"]`` key so the Library grid and any new
+      // ``useCorpora`` consumer both refresh.
       qc.invalidateQueries({ queryKey: libraryKeys.corpora() });
       qc.invalidateQueries({ queryKey: ["corpora"] });
-      qc.removeQueries({ queryKey: libraryKeys.corpus(corpusId) });
-      userOnSuccess?.(resp, corpusId, onMutateResult, ctx);
+      userOnSettled?.(data, error, corpusId, snapshot, mctx);
     },
   });
 }

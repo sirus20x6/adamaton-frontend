@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ErrorBoundary, ScopedErrorFallback } from "@/components/ErrorBoundary";
 import { ScaleWorkerDialog } from "@/features/nodes/ScaleWorkerDialog";
 
 const EVO_BASE = "/evo-api/api/v1";
@@ -1330,18 +1331,24 @@ export default function Nodes() {
       )}
 
       {!isLoading && !error && groups.length > 0 && (
-        <div className="flex flex-col gap-4">
-          {groups.map((g, i) => (
-            <GroupRack
-              key={g.hostname}
-              cls={g.cls}
-              hostname={g.hostname}
-              members={g.members}
-              rackId={`RACK·${String(i + 1).padStart(2, "0")}`}
-              now={now}
-            />
-          ))}
-        </div>
+        <ErrorBoundary
+          fallback={
+            <ScopedErrorFallback label="The fleet rack view hit an error." />
+          }
+        >
+          <div className="flex flex-col gap-4">
+            {groups.map((g, i) => (
+              <GroupRack
+                key={g.hostname}
+                cls={g.cls}
+                hostname={g.hostname}
+                members={g.members}
+                rackId={`RACK·${String(i + 1).padStart(2, "0")}`}
+                now={now}
+              />
+            ))}
+          </div>
+        </ErrorBoundary>
       )}
     </div>
   );

@@ -19,6 +19,7 @@ import {
 } from "@/api/zotero";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -185,6 +186,7 @@ export function ImportsTable() {
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(
     null,
   );
+  const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
 
   const params = React.useMemo(
     () => ({
@@ -244,13 +246,13 @@ export function ImportsTable() {
     bulkStatus !== "" && BULK_DISMISSABLE.has(bulkStatus) && total > 0;
   const onBulkDismiss = () => {
     if (!bulkStatus) return;
-    const ok = window.confirm(
-      `Dismiss all ${total.toLocaleString()} ${filter.label.toLowerCase()} imports? ` +
-        "This removes the rows from the import journal but doesn't touch any " +
-        "documents that already made it into a corpus.",
-    );
-    if (!ok) return;
-    deleteBulk.mutate(bulkStatus);
+    setConfirmBulkOpen(true);
+  };
+  const onConfirmBulkDismiss = () => {
+    if (!bulkStatus) return;
+    deleteBulk.mutate(bulkStatus, {
+      onSettled: () => setConfirmBulkOpen(false),
+    });
   };
 
   return (
@@ -426,6 +428,18 @@ export function ImportsTable() {
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        onOpenChange={setConfirmBulkOpen}
+        title={`Dismiss all ${total.toLocaleString()} ${filter.label.toLowerCase()} imports?`}
+        description="This removes the rows from the import journal but doesn't touch any documents that already made it into a corpus."
+        confirmLabel="Dismiss all"
+        confirmVariant="destructive"
+        busy={deleteBulk.isPending}
+        busyLabel="Dismissing…"
+        onConfirm={onConfirmBulkDismiss}
+      />
     </div>
   );
 }
