@@ -27,6 +27,7 @@ export interface Project {
   path: string;
   display_name: string;
   type: ProjectType;
+  host?: string;
   git_remote?: string;
   parent_id?: string;
   created_at: string;
@@ -36,6 +37,7 @@ export interface Project {
 export interface ProjectCreateRequest {
   path: string;
   display_name?: string;
+  host?: string;
   parent_id?: string;
 }
 
@@ -58,6 +60,8 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 export const projectsApi = {
   list: (): Promise<Project[]> =>
     fetch(`${EVO_BASE}/projects`).then(jsonOrThrow<Project[]>),
+  hosts: (): Promise<string[]> =>
+    fetch(`${EVO_BASE}/projects/hosts`).then(jsonOrThrow<string[]>),
   get: (id: string): Promise<Project> =>
     fetch(`${EVO_BASE}/projects/${encodeURIComponent(id)}`).then(
       jsonOrThrow<Project>,
@@ -81,6 +85,7 @@ export const projectsApi = {
 export const projectKeys = {
   all: ["projects"] as const,
   list: () => ["projects", "list"] as const,
+  hosts: () => ["projects", "hosts"] as const,
   detail: (id: string) => ["projects", "detail", id] as const,
 };
 
@@ -89,6 +94,14 @@ export function useProjects() {
     queryKey: projectKeys.list(),
     queryFn: projectsApi.list,
     refetchInterval: 15_000,
+  });
+}
+
+export function useProjectHosts() {
+  return useQuery({
+    queryKey: projectKeys.hosts(),
+    queryFn: projectsApi.hosts,
+    staleTime: 60_000,
   });
 }
 

@@ -17,6 +17,7 @@ import {
   GitFork,
   Loader2,
   Plus,
+  Server,
   Trash2,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ import {
   type ProjectType,
   useCreateProject,
   useDeleteProject,
+  useProjectHosts,
   useProjects,
 } from "@/api/projects";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const TYPE_TONE: Record<ProjectType, string> = {
   "git-repo": "bg-violet-500/10 text-violet-300 border-violet-500/30",
@@ -171,6 +174,15 @@ function ProjectCard({ project }: { project: Project }) {
         <Badge variant="outline" className={TYPE_TONE[project.type]}>
           {project.type}
         </Badge>
+        {project.host && (
+          <Badge
+            variant="outline"
+            className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+          >
+            <Server className="h-3 w-3" />
+            {project.host}
+          </Badge>
+        )}
         {project.git_remote && (
           <span
             className="truncate font-mono text-[10px] text-slate-500"
@@ -192,17 +204,30 @@ function RegisterDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const create = useCreateProject();
+  const hosts = useProjectHosts();
   const [path, setPath] = React.useState("");
   const [displayName, setDisplayName] = React.useState("");
+  const [host, setHost] = React.useState("");
+
+  const hostOptions = hosts.data ?? [];
 
   React.useEffect(() => {
     if (open) {
       setPath("");
       setDisplayName("");
+      setHost("");
       create.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Default to the first (local) host once the list loads.
+  React.useEffect(() => {
+    if (open && !host && hostOptions.length > 0) {
+      setHost(hostOptions[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hostOptions]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -212,6 +237,7 @@ function RegisterDialog({
       {
         path: trimmed,
         display_name: displayName.trim() || undefined,
+        host: host || undefined,
       },
       {
         onSuccess: () => onOpenChange(false),
@@ -241,6 +267,31 @@ function RegisterDialog({
                 onChange={(e) => setPath(e.target.value)}
                 className="font-mono"
               />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-muted-foreground">Host</span>
+              <select
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                disabled={hosts.isLoading || hostOptions.length === 0}
+                className={cn(
+                  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm",
+                  "ring-offset-background",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+              >
+                {hostOptions.length === 0 && (
+                  <option value="">
+                    {hosts.isLoading ? "Loading hosts…" : "No hosts available"}
+                  </option>
+                )}
+                {hostOptions.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-muted-foreground">
