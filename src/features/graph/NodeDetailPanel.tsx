@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { getNode } from "@/api/graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { colorForCategory } from "@/features/graph/useCytoscape";
 
 // Per-era palette. M30 (Great Crusade) leans gold; M31 (Heresy) blood
@@ -131,6 +132,7 @@ export const NodeDetailPanel = React.forwardRef<
     staleTime: 10_000,
   });
 
+  const { toast } = useToast();
   const [copied, setCopied] = React.useState(false);
 
   // Reset the "copied" badge whenever the inspected node changes so the
@@ -160,9 +162,13 @@ export const NodeDetailPanel = React.forwardRef<
       window.setTimeout(() => setCopied(false), 1200);
     } catch (err) {
       // Non-fatal — the id is still visible inline so the user can copy by hand.
-      console.warn("copy id failed", err);
+      toast({
+        title: "Copy failed",
+        description: err instanceof Error ? err.message : "Could not copy node id to clipboard.",
+        variant: "error",
+      });
     }
-  }, [nodeId]);
+  }, [nodeId, toast]);
 
   if (!nodeId) {
     return (

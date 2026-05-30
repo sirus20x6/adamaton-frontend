@@ -9,6 +9,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { FlaskRound, Plus, Cpu } from "lucide-react";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 import { Prose } from "@/components/markdown/Prose";
 import {
   HighlightedCode,
@@ -809,15 +811,23 @@ function RefineDiffSection({
       </div>
       {open && (
         <div className="mt-2">
-          <Suspense
+          <ErrorBoundary
             fallback={
-              <div className="rounded border border-slate-800 bg-slate-950 p-3 text-xs text-slate-500">
-                loading diff viewer…
+              <div className="rounded border border-rose-800/40 bg-rose-950/30 p-3 text-xs text-rose-300">
+                Diff viewer failed to load. Try closing and reopening the panel.
               </div>
             }
           >
-            <RefineSnapshotDiff runId={runId} choices={choices} />
-          </Suspense>
+            <Suspense
+              fallback={
+                <div className="rounded border border-slate-800 bg-slate-950 p-3 text-xs text-slate-500">
+                  loading diff viewer…
+                </div>
+              }
+            >
+              <RefineSnapshotDiff runId={runId} choices={choices} />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
     </section>

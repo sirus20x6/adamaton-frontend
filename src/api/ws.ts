@@ -76,7 +76,7 @@ function resolveWsUrl(taskId: string): string {
 function isResearchEvent(value: unknown): value is ResearchEvent {
   if (!value || typeof value !== "object") return false;
   const t = (value as { type?: unknown }).type;
-  return (
+  const known =
     t === "stage.started" ||
     t === "stage.progress" ||
     t === "stage.result" ||
@@ -86,8 +86,14 @@ function isResearchEvent(value: unknown): value is ResearchEvent {
     t === "task.done" ||
     t === "heartbeat" ||
     t === "pong" ||
-    t === "error"
-  );
+    t === "error";
+  if (!known && typeof t === "string") {
+    // Log unrecognised event types so new backend variants are visible in
+    // the browser console rather than being silently dropped.
+    // eslint-disable-next-line no-console
+    console.warn("[ws] unrecognised research event type:", t, value);
+  }
+  return known;
 }
 
 export type OpenResearchStreamOptions = {

@@ -473,9 +473,15 @@ export default function MCPManager() {
             </code>
             .
           </p>
+          <div aria-live="polite" className="sr-only">
+            {loading ? "Connecting to workstation agent…" : connected ? "Connected." : ""}
+          </div>
           {connError ? (
-            <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-200">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-200"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{connError}</span>
             </div>
           ) : null}

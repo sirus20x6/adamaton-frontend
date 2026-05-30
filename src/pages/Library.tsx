@@ -128,8 +128,12 @@ export default function Library() {
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === "importers" ? (
           importersQuery.isLoading ? (
-            <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div
+              aria-live="polite"
+              aria-label="Loading importers"
+              className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Loading importers…
             </div>
           ) : importersQuery.isError ? (
@@ -160,8 +164,12 @@ export default function Library() {
             </div>
           )
         ) : corporaQuery.isLoading ? (
-          <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div
+            aria-live="polite"
+            aria-label="Loading corpora"
+            className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Loading corpora…
           </div>
         ) : corporaQuery.isError ? (

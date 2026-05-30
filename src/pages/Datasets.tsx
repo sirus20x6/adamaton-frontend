@@ -119,8 +119,12 @@ export default function Datasets() {
       </header>
 
       {datasets.isLoading && (
-        <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card/30">
-          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+        <div
+          aria-live="polite"
+          aria-label="Loading datasets"
+          className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card/30"
+        >
+          <Loader2 className="h-5 w-5 animate-spin text-slate-500" aria-hidden="true" />
         </div>
       )}
 

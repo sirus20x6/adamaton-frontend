@@ -1,10 +1,7 @@
 import { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
 import type { Core } from "cytoscape";
-// cytoscape-fcose ships without TS types in some versions; the import is
-// re-exported as a default function we hand to cytoscape.use().
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore -- no bundled types
+/// <reference path="./cytoscape-fcose.d.ts" />
 import fcose from "cytoscape-fcose";
 
 // Cytoscape ignores duplicate ``use()`` calls, but we still flip a module-level

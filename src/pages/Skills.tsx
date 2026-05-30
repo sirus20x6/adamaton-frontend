@@ -228,7 +228,7 @@ function SkillsTab() {
             </option>
           ))}
         </select>
-        <div className="ml-auto text-xs text-muted-foreground">
+        <div className="ml-auto text-xs text-muted-foreground" aria-live="polite">
           {skillsQuery.isLoading
             ? "Loading…"
             : `${skills.length} skill${skills.length === 1 ? "" : "s"}`}
@@ -664,10 +664,12 @@ function CommunitiesTab() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <GitBranch className="h-3.5 w-3.5" />
-        {query.isLoading
-          ? "Loading communities…"
-          : `${list.length} communities (KMeans on bge-m3 skill embeddings) — click a card for members`}
+        <GitBranch className="h-3.5 w-3.5" aria-hidden="true" />
+        <span aria-live="polite">
+          {query.isLoading
+            ? "Loading communities…"
+            : `${list.length} communities (KMeans on bge-m3 skill embeddings) — click a card for members`}
+        </span>
       </div>
       {query.isError ? (
         <div className="rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-200">
@@ -875,7 +877,7 @@ function SubunitsTab() {
             </option>
           ))}
         </select>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground" aria-live="polite">
           {subunitsQuery.isLoading
             ? "Loading…"
             : `${subs.length} subunits in this skill`}
