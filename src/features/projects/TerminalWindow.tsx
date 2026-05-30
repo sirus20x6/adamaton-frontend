@@ -25,7 +25,15 @@ import type { TerminalSession } from "@/api/terminals";
 const MAX_BACKOFF_MS = 30_000;
 const BASE_BACKOFF_MS = 500;
 
-export type TerminalConnState = "connecting" | "open" | "closed";
+// "connecting" is the very first attach; "reconnecting" is any attach after a
+// drop (we've been open at least once and are now backing off). "closed" means
+// the socket is down and no retry is scheduled yet (transient, between a drop
+// and the next backoff tick).
+export type TerminalConnState =
+  | "connecting"
+  | "open"
+  | "reconnecting"
+  | "closed";
 
 export type TerminalWindowProps = {
   session: TerminalSession;
@@ -62,6 +70,12 @@ export function TerminalWindow({
   const attemptRef = useRef(0);
   const closedRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True once we've had at least one successful open — used to label later
+  // attaches as "reconnecting" rather than the initial "connecting".
+  const everOpenedRef = useRef(false);
+  // Bound by the connect effect so the manual "Reconnect now" button (declared
+  // before the effect runs) can trigger an immediate retry.
+  const reconnectNowRef = useRef<(() => void) | null>(null);
 
   // Last dimensions we told the server about, to suppress redundant resizes.
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
@@ -69,6 +83,8 @@ export function TerminalWindow({
   const [connState, setConnStateRaw] = useState<TerminalConnState>(
     "connecting",
   );
+  // Surfaced so the overlay can show "reconnecting (attempt N)".
+  const [attempt, setAttempt] = useState(0);
 
   const setConnState = useCallback(
     (state: TerminalConnState) => {
@@ -151,6 +167,8 @@ export function TerminalWindow({
   useEffect(() => {
     closedRef.current = false;
     attemptRef.current = 0;
+    everOpenedRef.current = false;
+    setAttempt(0);
 
     const clearReconnect = () => {
       if (reconnectTimerRef.current) {
@@ -162,6 +180,10 @@ export function TerminalWindow({
     const scheduleReconnect = () => {
       if (closedRef.current) return;
       attemptRef.current += 1;
+      setAttempt(attemptRef.current);
+      // Show the reconnecting state immediately while the backoff timer runs,
+      // not just at the moment the next socket opens.
+      setConnState("reconnecting");
       const jitter = Math.random() * 250;
       const delay = Math.min(
         BASE_BACKOFF_MS * 2 ** Math.min(attemptRef.current, 8) + jitter,
@@ -172,7 +194,7 @@ export function TerminalWindow({
 
     function connect() {
       if (closedRef.current) return;
-      setConnState("connecting");
+      setConnState(everOpenedRef.current ? "reconnecting" : "connecting");
 
       let ws: WebSocket;
       try {
@@ -187,6 +209,8 @@ export function TerminalWindow({
 
       ws.onopen = () => {
         attemptRef.current = 0;
+        setAttempt(0);
+        everOpenedRef.current = true;
         setConnState("open");
         // Re-assert our size on (re)connect so a freshly attached pty matches
         // the rendered viewport.
@@ -216,11 +240,33 @@ export function TerminalWindow({
       };
     }
 
+    // Expose an immediate-retry entry point for the manual "Reconnect now"
+    // button: cancel any pending backoff, drop the dead socket, retry at once.
+    reconnectNowRef.current = () => {
+      if (closedRef.current) return;
+      clearReconnect();
+      attemptRef.current = 0;
+      setAttempt(0);
+      const ws = socketRef.current;
+      socketRef.current = null;
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        try {
+          ws.close();
+        } catch {
+          // best-effort close
+        }
+      }
+      connect();
+    };
+
     connect();
 
     return () => {
       closedRef.current = true;
       clearReconnect();
+      reconnectNowRef.current = null;
       const ws = socketRef.current;
       socketRef.current = null;
       if (ws) {
@@ -233,6 +279,10 @@ export function TerminalWindow({
     };
     // sid identifies the session; pushResize/setConnState are stable callbacks.
   }, [sid, pushResize, setConnState]);
+
+  const reconnectNow = useCallback(() => {
+    reconnectNowRef.current?.();
+  }, []);
 
   // Refit on container resize and when this pane becomes the active one.
   useEffect(() => {
@@ -265,8 +315,26 @@ export function TerminalWindow({
       data-conn-state={connState}
     >
       {connState !== "open" && (
-        <div className="pointer-events-none absolute right-2 top-2 z-10 rounded bg-black/60 px-2 py-0.5 text-xs text-muted-foreground">
-          {connState === "connecting" ? "connecting…" : "disconnected"}
+        <div className="absolute right-2 top-2 z-10 flex items-center gap-2 rounded bg-black/60 px-2 py-1 text-xs text-muted-foreground">
+          {connState === "connecting" ? (
+            <span>connecting…</span>
+          ) : connState === "reconnecting" ? (
+            <span className="text-amber-300">
+              reconnecting…
+              {attempt > 0 ? ` (attempt ${attempt})` : ""}
+            </span>
+          ) : (
+            <span className="text-rose-300">disconnected</span>
+          )}
+          {connState !== "connecting" && (
+            <button
+              type="button"
+              onClick={reconnectNow}
+              className="rounded border border-border/60 px-1.5 py-0.5 text-[11px] text-foreground transition-colors hover:bg-accent/50"
+            >
+              Reconnect now
+            </button>
+          )}
         </div>
       )}
       <div ref={containerRef} className="h-full w-full" />
