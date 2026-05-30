@@ -187,7 +187,7 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div className="flex h-full gap-4 overflow-x-auto pb-4">
+        <div className="flex h-full items-stretch gap-4 overflow-x-auto pb-4">
           {columns.map((col) => (
             <BoardColumn
               key={col.id}
@@ -226,7 +226,7 @@ function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
-    <div className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-card/20">
+    <div className="flex h-full min-w-[16rem] max-w-[26rem] flex-1 basis-0 flex-col rounded-xl border border-border bg-card/20">
       <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold text-slate-200">
@@ -308,20 +308,37 @@ function CardTile({
   dragging?: boolean;
   overlay?: boolean;
 }) {
+  const [expanded, setExpanded] = React.useState(false);
+
   return (
     <div
       className={cn(
-        "flex cursor-grab flex-col gap-2 rounded-lg border border-border bg-card/60 p-3 text-left shadow-sm transition-colors hover:border-border/80",
+        "flex min-h-[5rem] cursor-grab flex-col gap-2.5 rounded-lg border border-border bg-card/60 p-3.5 text-left shadow-sm transition-colors hover:border-border/80",
         dragging && "cursor-grabbing",
         overlay && "rotate-2 shadow-lg ring-1 ring-violet-500/40",
       )}
     >
-      <p className="text-sm font-medium leading-snug text-slate-100">
+      <p className="break-words text-sm font-medium leading-snug text-slate-100">
         {card.title}
       </p>
 
       {card.body && (
-        <p className="line-clamp-2 text-xs text-slate-500">{card.body}</p>
+        <button
+          type="button"
+          title={card.body}
+          aria-expanded={expanded}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          className={cn(
+            "whitespace-pre-wrap break-words text-left text-xs leading-relaxed text-slate-500 transition-colors hover:text-slate-400",
+            !expanded && "line-clamp-3",
+          )}
+        >
+          {card.body}
+        </button>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
