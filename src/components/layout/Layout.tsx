@@ -6,12 +6,17 @@ import {
   Brain,
   Cable,
   Calendar,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
   Dna,
   FlaskConical,
   FlaskRound,
+  Folder,
+  FolderGit2,
+  GitBranch,
+  GitFork,
   HeartPulse,
   Home as HomeIcon,
   Library as LibraryIcon,
@@ -25,6 +30,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+
+import { useProjects, type ProjectType } from "@/api/projects";
 
 import { SystemHealthWidget } from "@/components/layout/SystemHealthWidget";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -200,6 +207,126 @@ type NavProps = {
   onNavigate?: () => void;
 };
 
+// projectTypeIcon maps a project's git relationship to a sidebar glyph so a
+// repo, a linked worktree, and a submodule read differently at a glance.
+function projectTypeIcon(type: ProjectType) {
+  switch (type) {
+    case "worktree":
+      return GitBranch;
+    case "submodule":
+      return GitFork;
+    case "folder":
+      return Folder;
+    default:
+      return FolderGit2;
+  }
+}
+
+// ProjectsNavSection renders the dynamic, collapsible "Projects" group at the
+// top of the sidebar. The header links to the /projects list+register page;
+// expanding it lists each registered project as a child link to its detail
+// view. Expansion state is ephemeral (component-local) — it does not need to
+// survive reloads. When the sidebar is icon-collapsed we render just the
+// header glyph linking to /projects.
+function ProjectsNavSection({ collapsed, onNavigate }: NavProps) {
+  const [open, setOpen] = useState(true);
+  const { data: projects } = useProjects();
+
+  const headerBase = cn(
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+    "hover:bg-accent hover:text-accent-foreground",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  );
+
+  if (collapsed) {
+    return (
+      <NavLink
+        to="/projects"
+        onClick={onNavigate}
+        title="Projects"
+        aria-label="Projects"
+        className={({ isActive }) =>
+          cn(
+            headerBase,
+            "justify-center px-2",
+            isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+          )
+        }
+      >
+        <FolderGit2 className="h-4 w-4 shrink-0" />
+      </NavLink>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center">
+        <NavLink
+          to="/projects"
+          end
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            cn(
+              headerBase,
+              "flex-1",
+              isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+            )
+          }
+        >
+          <FolderGit2 className="h-4 w-4 shrink-0" />
+          <span className="truncate">Projects</span>
+        </NavLink>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Collapse projects" : "Expand projects"}
+          aria-expanded={open}
+          className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform", open ? "" : "-rotate-90")}
+          />
+        </button>
+      </div>
+
+      {open ? (
+        <div className="flex flex-col gap-0.5">
+          {projects && projects.length > 0 ? (
+            projects.map((p) => {
+              const Icon = projectTypeIcon(p.type);
+              return (
+                <NavLink
+                  key={p.id}
+                  to={`/projects/${p.id}`}
+                  onClick={onNavigate}
+                  title={p.path}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2 rounded-md py-1.5 pl-7 pr-2.5 text-sm transition-colors",
+                      "hover:bg-accent hover:text-accent-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isActive
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground",
+                    )
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  <span className="truncate">{p.display_name}</span>
+                </NavLink>
+              );
+            })
+          ) : (
+            <span className="px-2.5 py-1 pl-7 text-xs text-muted-foreground/70">
+              No projects yet
+            </span>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function NavList({ collapsed, onNavigate }: NavProps) {
   const itemClass = cn(
     "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
@@ -210,6 +337,8 @@ function NavList({ collapsed, onNavigate }: NavProps) {
   );
   return (
     <nav className="flex flex-col gap-0.5 p-2">
+      <ProjectsNavSection collapsed={collapsed} onNavigate={onNavigate} />
+      <div className="my-1 border-t border-border/60" />
       {NAV.map(({ to, label, icon: Icon, end, external }) => {
         if (external) {
           // Plain anchor so the browser leaves the SPA -- the target

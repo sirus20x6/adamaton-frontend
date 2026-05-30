@@ -25,6 +25,8 @@ const Skills = lazy(() => import("@/pages/Skills"));
 const NanoResearch = lazy(() => import("@/pages/NanoResearch"));
 const Nodes = lazy(() => import("@/pages/Nodes"));
 const Datasets = lazy(() => import("@/pages/Datasets"));
+const Projects = lazy(() => import("@/pages/Projects"));
+const ProjectDetail = lazy(() => import("@/pages/ProjectDetail"));
 const MCPManager = lazy(() => import("@/pages/MCPManager"));
 const NetworkHome = lazy(() => import("@/pages/network/NetworkHome"));
 const NetworkOutcomes = lazy(() => import("@/pages/network/Outcomes"));
@@ -213,6 +215,22 @@ export default function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <Datasets />
+                </Suspense>
+              }
+            />
+            <Route
+              path="projects"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Projects />
+                </Suspense>
+              }
+            />
+            <Route
+              path="projects/:projectId"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <ProjectDetail />
                 </Suspense>
               }
             />
