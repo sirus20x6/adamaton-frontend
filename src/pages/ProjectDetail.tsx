@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import FileTreePanel from "@/features/projects/FileTreePanel";
+import { KanbanPreview } from "@/features/projects/KanbanPreview";
 import { TerminalWindow } from "@/features/projects/TerminalWindow";
 import { useTerminalStore } from "@/features/projects/useTerminalStore";
 
@@ -232,6 +233,11 @@ export default function ProjectDetail() {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <FileTreePanel projectId={p.id} />
         <TerminalsPane projectId={p.id} />
+      </div>
+
+      {/* Compact read-only board preview; full board at /projects/:id/kanban. */}
+      <div className="shrink-0">
+        <KanbanPreview projectId={p.id} />
       </div>
     </div>
   );
