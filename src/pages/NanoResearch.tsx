@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { FlaskRound, Plus, Cpu } from "lucide-react";
 
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary, ScopedErrorFallback } from "@/components/ErrorBoundary";
 
 import { Prose } from "@/components/markdown/Prose";
 import {
@@ -137,7 +137,15 @@ export default function NanoResearch() {
         </div>
       </header>
 
-      {mode === "distill" && <DistillationTab />}
+      {mode === "distill" && (
+        <ErrorBoundary
+          fallback={
+            <ScopedErrorFallback label="The distillation panel hit an error." />
+          }
+        >
+          <DistillationTab />
+        </ErrorBoundary>
+      )}
       {mode === "runs" && (
         <RunsBody
           runs={runs}
@@ -272,7 +280,14 @@ function RunsBody(props: {
 
         <div className="overflow-y-auto rounded-md border border-slate-800 bg-slate-900/50 p-3">
           {selectedId ? (
-            <RunDetail runId={selectedId} liveStages={liveStages} />
+            <ErrorBoundary
+              resetKey={selectedId}
+              fallback={
+                <ScopedErrorFallback label="This run's detail panel hit an error." />
+              }
+            >
+              <RunDetail runId={selectedId} liveStages={liveStages} />
+            </ErrorBoundary>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">
               select a run to see its stage timeline + artifacts

@@ -19,6 +19,7 @@ import {
 } from "@/api/plugins";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -154,6 +155,7 @@ export function PluginItemsTable({ pluginId }: PluginItemsTableProps) {
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(
     null,
   );
+  const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
 
   const params = React.useMemo(
     () => ({
@@ -214,13 +216,14 @@ export function PluginItemsTable({ pluginId }: PluginItemsTableProps) {
     bulkStatus !== "" && BULK_DISMISSABLE.has(bulkStatus) && total > 0;
   const onBulkDismiss = () => {
     if (!bulkStatus) return;
-    const ok = window.confirm(
-      `Dismiss all ${total.toLocaleString()} ${filter.label.toLowerCase()} items? ` +
-        "This removes the rows from the items journal but doesn't touch any " +
-        "documents that already made it into a corpus.",
+    setConfirmBulkOpen(true);
+  };
+  const onConfirmBulkDismiss = () => {
+    if (!bulkStatus) return;
+    deleteBulk.mutate(
+      { plugin_id: pluginId, status: bulkStatus },
+      { onSettled: () => setConfirmBulkOpen(false) },
     );
-    if (!ok) return;
-    deleteBulk.mutate({ plugin_id: pluginId, status: bulkStatus });
   };
 
   return (
@@ -419,6 +422,18 @@ export function PluginItemsTable({ pluginId }: PluginItemsTableProps) {
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        onOpenChange={setConfirmBulkOpen}
+        title={`Dismiss all ${total.toLocaleString()} ${filter.label.toLowerCase()} items?`}
+        description="This removes the rows from the items journal but doesn't touch any documents that already made it into a corpus."
+        confirmLabel="Dismiss all"
+        confirmVariant="destructive"
+        busy={deleteBulk.isPending}
+        busyLabel="Dismissing…"
+        onConfirm={onConfirmBulkDismiss}
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@/api/library";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ export function CorpusCard({ corpus }: { corpus: Corpus }) {
 
   const isSelected = selection?.selected.has(corpus.id) ?? false;
   const inSelectionMode = Boolean(selection?.selectionMode);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
 
   const remove = useMutation({
     mutationFn: () => deleteCorpus(corpus.id),
@@ -113,6 +115,7 @@ export function CorpusCard({ corpus }: { corpus: Corpus }) {
       });
       queryClient.invalidateQueries({ queryKey: ["library", "corpora"] });
       queryClient.invalidateQueries({ queryKey: ["corpora"] });
+      setConfirmDeleteOpen(false);
     },
     onError: (err) => {
       toast({
@@ -210,13 +213,7 @@ export function CorpusCard({ corpus }: { corpus: Corpus }) {
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
-                if (
-                  window.confirm(
-                    `Delete corpus "${corpus.name}"? This is reversible.`,
-                  )
-                ) {
-                  remove.mutate();
-                }
+                setConfirmDeleteOpen(true);
               }}
               className="text-red-300 focus:text-red-200"
             >
@@ -226,6 +223,24 @@ export function CorpusCard({ corpus }: { corpus: Corpus }) {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Delete corpus"
+        description={
+          <>
+            This soft-deletes{" "}
+            <span className="font-medium text-foreground">{corpus.name}</span>.
+            Documents stay in the database — the corpus can be restored later.
+          </>
+        }
+        confirmLabel="Delete corpus"
+        confirmVariant="destructive"
+        busy={remove.isPending}
+        busyLabel="Deleting…"
+        onConfirm={() => remove.mutate()}
+      />
     </Card>
   );
 }

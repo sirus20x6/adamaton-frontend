@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorBoundary, ScopedErrorFallback } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -489,6 +490,11 @@ export default function MCPManager() {
       </Card>
 
       {/* Three-column grid */}
+      <ErrorBoundary
+        fallback={
+          <ScopedErrorFallback label="The MCP server panels hit an error." />
+        }
+      >
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto md:grid-cols-2 xl:grid-cols-3">
         {AGENT_META.map(({ key, label, icon: Icon, hint }) => {
           const info = snapshot?.[key];
@@ -552,6 +558,7 @@ export default function MCPManager() {
           );
         })}
       </div>
+      </ErrorBoundary>
 
       {/* Add/Edit dialog */}
       <Dialog

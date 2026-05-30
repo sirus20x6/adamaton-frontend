@@ -269,6 +269,36 @@ function ErrorFallback({
   );
 }
 
+/**
+ * Compact inline fallback for *scoped* boundaries wrapped around a single
+ * panel/subtree rather than a whole page. Unlike the default full-page card,
+ * this stays inside the panel's box so a crash in one detail pane doesn't take
+ * over the layout — the rest of the page keeps rendering.
+ */
+export function ScopedErrorFallback({
+  label = "This panel hit an error.",
+}: {
+  label?: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "flex h-full min-h-24 w-full flex-col items-start justify-center gap-1",
+        "rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive",
+      )}
+    >
+      <span className="inline-flex items-center gap-2 font-medium">
+        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+        {label}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        The rest of the page is still usable — try reloading if it persists.
+      </span>
+    </div>
+  );
+}
+
 /** Tiny imperative reset hook — wires to the boundary's `resetKey`. */
 export function useResetErrorBoundary(): {
   resetKey: number;
