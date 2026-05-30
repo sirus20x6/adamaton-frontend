@@ -10,7 +10,7 @@
  * See docs/PROJECTS_KANBAN.md.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import {
 } from "@/api/terminals";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import FileTreePanel from "@/features/projects/FileTreePanel";
 import { KanbanPreview } from "@/features/projects/KanbanPreview";
@@ -49,6 +50,10 @@ function TerminalsPane({ projectId }: { projectId: string }) {
   const closeTab = useTerminalStore((s) => s.closeTab);
   const setActive = useTerminalStore((s) => s.setActive);
   const pruneTabs = useTerminalStore((s) => s.pruneTabs);
+
+  // The session id pending a kill confirmation, or null when the dialog is
+  // closed. Killing a terminal destroys its tmux session, so it's gated.
+  const [pendingKill, setPendingKill] = useState<string | null>(null);
 
   const sessions = terminals.data ?? [];
 
@@ -72,10 +77,23 @@ function TerminalsPane({ projectId }: { projectId: string }) {
     );
   };
 
-  const handleClose = (sid: string) => {
-    closeTab(projectId, sid);
-    deleteTerminal.mutate({ sid, projectId });
+  const confirmKill = () => {
+    const sid = pendingKill;
+    if (!sid) return;
+    deleteTerminal.mutate(
+      { sid, projectId },
+      {
+        onSettled: () => {
+          closeTab(projectId, sid);
+          setPendingKill(null);
+        },
+      },
+    );
   };
+
+  const pendingSession = pendingKill
+    ? sessions.find((s) => s.id === pendingKill)
+    : undefined;
 
   const openSessions = openIds
     .map((id) => sessions.find((s) => s.id === id))
@@ -106,8 +124,9 @@ function TerminalsPane({ projectId }: { projectId: string }) {
               </button>
               <button
                 type="button"
-                onClick={() => handleClose(s.id)}
-                aria-label="Close terminal"
+                onClick={() => setPendingKill(s.id)}
+                aria-label="Kill terminal"
+                title="Kill terminal (ends the tmux session)"
                 className="rounded p-0.5 opacity-60 hover:bg-rose-500/20 hover:text-rose-300 hover:opacity-100"
               >
                 <X className="h-3 w-3" />
@@ -159,6 +178,26 @@ function TerminalsPane({ projectId }: { projectId: string }) {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={pendingKill !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingKill(null);
+        }}
+        title="Kill this terminal?"
+        description={
+          pendingSession
+            ? `This ends the tmux session "${
+                pendingSession.title || pendingSession.command || "shell"
+              }" and any running process in it. This cannot be undone.`
+            : "This ends the tmux session and any running process in it. This cannot be undone."
+        }
+        confirmLabel="Kill terminal"
+        confirmVariant="destructive"
+        busy={deleteTerminal.isPending}
+        busyLabel="Killing…"
+        onConfirm={confirmKill}
+      />
     </div>
   );
 }

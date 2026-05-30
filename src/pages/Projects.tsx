@@ -31,6 +31,7 @@ import {
 } from "@/api/projects";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -126,6 +127,7 @@ export default function Projects() {
 function ProjectCard({ project }: { project: Project }) {
   const del = useDeleteProject();
   const Icon = typeIcon(project.type);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-xl border border-border bg-card/30 p-4 transition-colors hover:border-border/80 hover:bg-card/50">
@@ -144,15 +146,7 @@ function ProjectCard({ project }: { project: Project }) {
           aria-label="Unregister project"
           title="Unregister (does not delete files)"
           disabled={del.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                `Unregister "${project.display_name}"? This only removes it from the dashboard — your files are untouched.`,
-              )
-            ) {
-              del.mutate(project.id);
-            }
-          }}
+          onClick={() => setConfirmOpen(true)}
           className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-rose-500/10 hover:text-rose-300 focus-visible:opacity-100 group-hover:opacity-100"
         >
           {del.isPending ? (
@@ -162,6 +156,22 @@ function ProjectCard({ project }: { project: Project }) {
           )}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Unregister "${project.display_name}"?`}
+        description="This only removes the project from the dashboard. Your files on disk are untouched."
+        confirmLabel="Unregister"
+        confirmVariant="destructive"
+        busy={del.isPending}
+        busyLabel="Unregistering…"
+        onConfirm={() =>
+          del.mutate(project.id, {
+            onSettled: () => setConfirmOpen(false),
+          })
+        }
+      />
 
       <p
         className="truncate font-mono text-xs text-slate-500"

@@ -36,7 +36,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster, useToast } from "@/components/ui/toast";
+import { useVirtualRows } from "@/hooks/useVirtualRows";
 import { cn } from "@/lib/utils";
+
+// Fixed pixel height of one memory row. Rows truncate title/subtitle to a
+// single line each, so their height is stable — which is what lets the simple
+// fixed-height virtualizer (useVirtualRows) avoid per-row measurement.
+const ROW_HEIGHT = 65;
 
 // A unified row shape — every source flattens to this so the row component
 // and search filter don't care about which table/file the record came from.
@@ -203,6 +209,11 @@ export default function Memory() {
   const [selected, setSelected] = React.useState<UnifiedRow | null>(null);
   const [creating, setCreating] = React.useState<string | null>(null);
 
+  // Outer scroll container for the virtualized list. Only the rows currently
+  // in (or near) the viewport are mounted, so the list stays smooth past the
+  // ~500-row point where the old slice cap kicked in.
+  const listScrollRef = React.useRef<HTMLDivElement | null>(null);
+
   const filtered = React.useMemo(() => {
     let rows = items;
     if (activeFilter) {
@@ -219,6 +230,18 @@ export default function Memory() {
     }
     return rows;
   }, [items, activeFilter, debouncedSearch]);
+
+  const virtual = useVirtualRows({
+    count: filtered.length,
+    rowHeight: ROW_HEIGHT,
+    scrollRef: listScrollRef,
+  });
+
+  // Reset the scroll position to the top whenever the result set changes so a
+  // new filter/search doesn't leave the viewport stranded past the new end.
+  React.useEffect(() => {
+    listScrollRef.current?.scrollTo({ top: 0 });
+  }, [activeFilter, debouncedSearch]);
 
   const chartData = React.useMemo(() => {
     return sources
@@ -336,57 +359,82 @@ export default function Memory() {
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        {loading && items.length === 0 ? (
+      {loading && items.length === 0 ? (
+        <div className="min-h-0 flex-1 overflow-auto">
           <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading memory…
           </div>
-        ) : filtered.length === 0 ? (
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="min-h-0 flex-1 overflow-auto">
           <div className="rounded-lg border border-dashed border-border bg-card/30 p-12 text-center text-sm text-muted-foreground">
             No memory matches your search.
           </div>
-        ) : (
-          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {filtered.slice(0, 500).map((row) => (
-              <button
-                key={row.key}
-                type="button"
-                onClick={() => setSelected(row)}
-                className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-1">
+          <div
+            ref={listScrollRef}
+            className="min-h-0 flex-1 overflow-auto rounded-lg border border-border"
+          >
+            {/* Spacer sized to the full list keeps the scrollbar honest; the
+                rendered window is absolutely positioned at its true offset. */}
+            <div
+              className="relative w-full"
+              style={{ height: virtual.totalHeight }}
+            >
+              <div
+                className="absolute inset-x-0 top-0 divide-y divide-border"
+                style={{ transform: `translateY(${virtual.offsetY}px)` }}
               >
-                <Badge
-                  variant={badgeVariant(row.sourceKey)}
-                  className="mt-0.5 shrink-0"
-                >
-                  {row.sourceLabel}
-                </Badge>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
-                    {row.title}
-                  </span>
-                  {row.subtitle ? (
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {row.subtitle}
-                    </span>
-                  ) : null}
-                </span>
-                {row.lastModified ? (
-                  <span className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
-                    {new Date(row.lastModified).toLocaleDateString()}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-            {filtered.length > 500 ? (
-              <div className="bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-                Showing first 500 of {filtered.length} matches. Refine your
-                search to narrow.
+                {virtual.range.map((i) => {
+                  const row = filtered[i];
+                  if (!row) return null;
+                  return (
+                    <button
+                      key={row.key}
+                      type="button"
+                      onClick={() => setSelected(row)}
+                      style={{ height: ROW_HEIGHT }}
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+                    >
+                      <Badge
+                        variant={badgeVariant(row.sourceKey)}
+                        className="mt-0.5 shrink-0"
+                      >
+                        {row.sourceLabel}
+                      </Badge>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {row.title}
+                        </span>
+                        {row.subtitle ? (
+                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                            {row.subtitle}
+                          </span>
+                        ) : null}
+                      </span>
+                      {row.lastModified ? (
+                        <span className="mt-0.5 whitespace-nowrap text-xs text-muted-foreground">
+                          {new Date(row.lastModified).toLocaleDateString()}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
-            ) : null}
+            </div>
           </div>
-        )}
-      </div>
+          <p className="shrink-0 px-1 text-[11px] text-muted-foreground">
+            {filtered.length.toLocaleString()}{" "}
+            {filtered.length === 1 ? "item" : "items"}
+            {filtered.length === items.length
+              ? ""
+              : ` of ${items.length.toLocaleString()}`}
+          </p>
+        </div>
+      )}
 
       {selected ? (
         <DetailModal
