@@ -1,5 +1,5 @@
 /**
- * KanbanBoard — horizontal, drag-and-drop board for one project board.
+ * KanbanBoard -- horizontal, drag-and-drop board for one project board.
  *
  * Columns render left-to-right by position; cards are @dnd-kit sortable and
  * draggable across columns. Dropping a card onto another column fires an
@@ -30,7 +30,19 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
-import { Loader2, Plus, UserRound } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  CircleDot,
+  ExternalLink,
+  FileText,
+  GitPullRequest,
+  Hash,
+  Loader2,
+  Plus,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 
 import {
   CARD_DIFFICULTIES,
@@ -55,6 +67,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +93,15 @@ const DIFFICULTY_TONE: Record<CardDifficulty, string> = {
   expert: "border-rose-500/30 bg-rose-500/10 text-rose-300",
 };
 
+const COLUMN_ACCENTS: readonly [string, ...string[]] = [
+  "from-slate-400/70",
+  "from-violet-400/70",
+  "from-sky-400/70",
+  "from-amber-400/70",
+  "from-emerald-400/70",
+  "from-rose-400/70",
+] as const;
+
 function sortByPosition<T extends { position: number; created_at: string }>(
   a: T,
   b: T,
@@ -81,11 +110,18 @@ function sortByPosition<T extends { position: number; created_at: string }>(
   return a.created_at.localeCompare(b.created_at);
 }
 
+function columnAccent(index: number): string {
+  return COLUMN_ACCENTS[index % COLUMN_ACCENTS.length] ?? COLUMN_ACCENTS[0];
+}
+
 export function KanbanBoard({ boardID }: { boardID: string }) {
   const board = useKanbanBoard(boardID);
   const move = useMoveCard(boardID);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [addColumnId, setAddColumnId] = React.useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = React.useState<string | null>(
+    null,
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -97,7 +133,8 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
   );
 
   const columns = React.useMemo(
-    () => [...(board.data?.columns ?? [])].sort((a, b) => a.position - b.position),
+    () =>
+      [...(board.data?.columns ?? [])].sort((a, b) => a.position - b.position),
     [board.data?.columns],
   );
 
@@ -117,6 +154,14 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
   const activeCard = React.useMemo(
     () => board.data?.cards.find((c) => c.id === activeId) ?? null,
     [activeId, board.data?.cards],
+  );
+  const selectedCard = React.useMemo(
+    () => board.data?.cards.find((c) => c.id === selectedCardId) ?? null,
+    [selectedCardId, board.data?.cards],
+  );
+  const selectedColumn = React.useMemo(
+    () => columns.find((c) => c.id === selectedCard?.column_id) ?? null,
+    [columns, selectedCard?.column_id],
   );
 
   function handleDragStart(event: DragStartEvent) {
@@ -187,21 +232,21 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div className="flex h-full items-stretch gap-4 overflow-x-auto pb-4">
-          {columns.map((col) => (
+        <div className="flex h-full min-h-0 items-stretch gap-4 overflow-x-auto overflow-y-hidden pb-4">
+          {columns.map((col, index) => (
             <BoardColumn
               key={col.id}
               column={col}
               cards={cardsByColumn.get(col.id) ?? []}
+              accent={columnAccent(index)}
               onAddCard={() => setAddColumnId(col.id)}
+              onOpenCard={setSelectedCardId}
             />
           ))}
         </div>
 
         <DragOverlay>
-          {activeCard ? (
-            <CardTile card={activeCard} dragging overlay />
-          ) : null}
+          {activeCard ? <CardTile card={activeCard} dragging overlay /> : null}
         </DragOverlay>
       </DndContext>
 
@@ -210,6 +255,15 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
         columnId={addColumnId}
         onClose={() => setAddColumnId(null)}
       />
+
+      <CardDetailSheet
+        card={selectedCard}
+        column={selectedColumn}
+        open={selectedCard !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCardId(null);
+        }}
+      />
     </>
   );
 }
@@ -217,43 +271,72 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
 function BoardColumn({
   column,
   cards,
+  accent,
   onAddCard,
+  onOpenCard,
 }: {
   column: KanbanColumn;
   cards: KanbanCard[];
+  accent: string;
   onAddCard: () => void;
+  onOpenCard: (cardID: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const urgentCount = cards.filter((card) => card.priority === "urgent").length;
+  const claimedCount = cards.filter(
+    (card) => card.claim_status === "claimed",
+  ).length;
 
   return (
-    <div className="flex h-full min-w-[16rem] max-w-[26rem] flex-1 basis-0 flex-col rounded-xl border border-border bg-card/20">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-semibold text-slate-200">
-            {column.name}
-          </span>
-          {column.is_ready && (
-            <Badge variant="success" className="shrink-0">
-              ready
-            </Badge>
-          )}
-          <span className="text-xs text-slate-500">{cards.length}</span>
+    <div className="flex h-full min-h-0 w-[20rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card/25 shadow-sm">
+      <div className={cn("h-1 bg-gradient-to-r to-transparent", accent)} />
+      <div className="border-b border-border/60 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-semibold text-slate-100">
+              {column.name}
+            </span>
+            <span className="rounded-full border border-border/70 bg-background/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+              {cards.length}
+            </span>
+            {column.is_ready && (
+              <Badge variant="success" className="shrink-0">
+                ready
+              </Badge>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label={`Add card to ${column.name}`}
+            onClick={onAddCard}
+            className="rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label={`Add card to ${column.name}`}
-          onClick={onAddCard}
-          className="rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        {(claimedCount > 0 || urgentCount > 0) && (
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+            {claimedCount > 0 && (
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <UserRound className="h-3 w-3 shrink-0" />
+                <span className="truncate">{claimedCount} claimed</span>
+              </span>
+            )}
+            {urgentCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-rose-300">
+                <Sparkles className="h-3 w-3 shrink-0" />
+                {urgentCount} urgent
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div
           ref={setNodeRef}
           className={cn(
-            "flex min-h-[120px] flex-col gap-2 p-2 transition-colors",
+            "flex min-h-full flex-col gap-2 p-2.5 transition-colors",
             isOver && "bg-accent/30",
           )}
         >
@@ -262,13 +345,22 @@ function BoardColumn({
             strategy={verticalListSortingStrategy}
           >
             {cards.map((card) => (
-              <SortableCard key={card.id} card={card} />
+              <SortableCard
+                key={card.id}
+                card={card}
+                onOpen={() => onOpenCard(card.id)}
+              />
             ))}
           </SortableContext>
           {cards.length === 0 && (
-            <p className="px-1 py-6 text-center text-xs text-slate-600">
-              No cards
-            </p>
+            <button
+              type="button"
+              onClick={onAddCard}
+              className="flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/20 px-3 py-6 text-center text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background/40"
+            >
+              <Plus className="h-4 w-4" />
+              Add the first card
+            </button>
           )}
         </div>
       </ScrollArea>
@@ -276,7 +368,13 @@ function BoardColumn({
   );
 }
 
-function SortableCard({ card }: { card: KanbanCard }) {
+function SortableCard({
+  card,
+  onOpen,
+}: {
+  card: KanbanCard;
+  onOpen: () => void;
+}) {
   const {
     attributes,
     listeners,
@@ -294,7 +392,7 @@ function SortableCard({ card }: { card: KanbanCard }) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <CardTile card={card} dragging={isDragging} />
+      <CardTile card={card} dragging={isDragging} onOpen={onOpen} />
     </div>
   );
 }
@@ -303,42 +401,49 @@ function CardTile({
   card,
   dragging,
   overlay,
+  onOpen,
 }: {
   card: KanbanCard;
   dragging?: boolean;
   overlay?: boolean;
+  onOpen?: () => void;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
-
   return (
     <div
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (!onOpen) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       className={cn(
-        "flex min-h-[5rem] cursor-grab flex-col gap-2.5 rounded-lg border border-border bg-card/60 p-3.5 text-left shadow-sm transition-colors hover:border-border/80",
+        "group flex min-h-[6rem] cursor-grab flex-col gap-2.5 rounded-lg border border-border bg-card/70 p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-border/90 hover:bg-card/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         dragging && "cursor-grabbing",
         overlay && "rotate-2 shadow-lg ring-1 ring-violet-500/40",
       )}
     >
-      <p className="break-words text-sm font-medium leading-snug text-slate-100">
-        {card.title}
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 break-words text-sm font-medium leading-snug text-slate-100">
+          {card.title}
+        </p>
+        {card.claim_status === "done" ? (
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+        ) : (
+          <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-muted-foreground" />
+        )}
+      </div>
 
       {card.body && (
-        <button
-          type="button"
+        <p
           title={card.body}
-          aria-expanded={expanded}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((v) => !v);
-          }}
-          className={cn(
-            "whitespace-pre-wrap break-words text-left text-xs leading-relaxed text-slate-500 transition-colors hover:text-slate-400",
-            !expanded && "line-clamp-3",
-          )}
+          className="line-clamp-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-500"
         >
           {card.body}
-        </button>
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -346,9 +451,7 @@ function CardTile({
         <Badge variant="outline" className={DIFFICULTY_TONE[card.difficulty]}>
           {card.difficulty}
         </Badge>
-        {card.claim_status === "done" && (
-          <Badge variant="success">done</Badge>
-        )}
+        {card.claim_status === "done" && <Badge variant="success">done</Badge>}
       </div>
 
       {card.claim_status === "claimed" && card.claimed_by && (
@@ -363,14 +466,190 @@ function CardTile({
           href={card.result_pr_url}
           target="_blank"
           rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          className="truncate text-xs text-sky-400 hover:underline"
+          className="inline-flex min-w-0 items-center gap-1 truncate text-xs text-sky-400 hover:underline"
         >
-          {card.result_pr_url}
+          <GitPullRequest className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{card.result_pr_url}</span>
         </a>
       )}
     </div>
   );
+}
+
+function CardDetailSheet({
+  card,
+  column,
+  open,
+  onOpenChange,
+}: {
+  card: KanbanCard | null;
+  column: KanbanColumn | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!card) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="max-w-2xl">
+        <SheetHeader className="pr-10">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant={PRIORITY_VARIANT[card.priority]}>
+              {card.priority}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={DIFFICULTY_TONE[card.difficulty]}
+            >
+              {card.difficulty}
+            </Badge>
+            <Badge
+              variant={card.claim_status === "done" ? "success" : "default"}
+            >
+              {card.claim_status}
+            </Badge>
+          </div>
+          <SheetTitle className="text-xl leading-snug">{card.title}</SheetTitle>
+          <SheetDescription>
+            {column?.name ?? "Unknown column"} - updated{" "}
+            {formatDateTime(card.updated_at)}
+          </SheetDescription>
+        </SheetHeader>
+
+        <SheetBody className="space-y-5">
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+              <FileText className="h-3.5 w-3.5" />
+              Details
+            </h3>
+            <div className="min-h-[8rem] whitespace-pre-wrap rounded-md border border-border/70 bg-background/35 p-4 text-sm leading-relaxed text-slate-200">
+              {card.body || (
+                <span className="text-muted-foreground">
+                  No description has been added.
+                </span>
+              )}
+            </div>
+          </section>
+
+          {(card.claimed_by || card.result_summary || card.result_pr_url) && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5" />
+                Execution
+              </h3>
+              <div className="grid gap-2 rounded-md border border-border/70 bg-background/25 p-3 text-sm">
+                {card.claimed_by && (
+                  <DetailRow
+                    icon={<UserRound className="h-4 w-4" />}
+                    label="Claimed by"
+                    value={card.claimed_by}
+                  />
+                )}
+                {card.result_task_id && (
+                  <DetailRow
+                    icon={<Hash className="h-4 w-4" />}
+                    label="Task"
+                    value={card.result_task_id}
+                    mono
+                  />
+                )}
+                {card.result_summary && (
+                  <div className="space-y-1.5">
+                    <div className="text-xs uppercase text-muted-foreground">
+                      Result summary
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {card.result_summary}
+                    </p>
+                  </div>
+                )}
+                {card.result_pr_url && (
+                  <a
+                    href={card.result_pr_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-w-0 items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sky-300 transition-colors hover:bg-sky-500/15"
+                  >
+                    <ExternalLink className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{card.result_pr_url}</span>
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
+
+          <section className="grid gap-2 text-sm sm:grid-cols-2">
+            <DetailRow
+              icon={<CalendarClock className="h-4 w-4" />}
+              label="Created"
+              value={formatDateTime(card.created_at)}
+            />
+            <DetailRow
+              icon={<CalendarClock className="h-4 w-4" />}
+              label="Updated"
+              value={formatDateTime(card.updated_at)}
+            />
+            {card.claimed_at && (
+              <DetailRow
+                icon={<CalendarClock className="h-4 w-4" />}
+                label="Claimed"
+                value={formatDateTime(card.claimed_at)}
+              />
+            )}
+            <DetailRow
+              icon={<Hash className="h-4 w-4" />}
+              label="Card ID"
+              value={card.id}
+              mono
+            />
+          </section>
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DetailRow({
+  icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2 rounded-md border border-border/70 bg-background/25 px-3 py-2">
+      <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-[11px] uppercase text-muted-foreground">
+          {label}
+        </span>
+        <span
+          className={cn(
+            "block truncate text-sm text-slate-200",
+            mono && "font-mono text-xs",
+          )}
+        >
+          {value}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return "n/a";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function AddCardDialog({
@@ -443,7 +722,7 @@ function AddCardDialog({
                 Body <span className="text-xs text-slate-500">(optional)</span>
               </span>
               <Textarea
-                placeholder="Details, acceptance criteria, links…"
+                placeholder="Details, acceptance criteria, links..."
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
               />
@@ -453,9 +732,7 @@ function AddCardDialog({
                 <span className="text-muted-foreground">Priority</span>
                 <select
                   value={priority}
-                  onChange={(e) =>
-                    setPriority(e.target.value as CardPriority)
-                  }
+                  onChange={(e) => setPriority(e.target.value as CardPriority)}
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {CARD_PRIORITIES.map((p) => (
