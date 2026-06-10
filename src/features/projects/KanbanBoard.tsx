@@ -42,6 +42,7 @@ import {
   Plus,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 
 import {
@@ -66,15 +67,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -232,17 +224,27 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div className="flex h-full min-h-0 items-stretch gap-4 overflow-x-auto overflow-y-hidden pb-4">
-          {columns.map((col, index) => (
-            <BoardColumn
-              key={col.id}
-              column={col}
-              cards={cardsByColumn.get(col.id) ?? []}
-              accent={columnAccent(index)}
-              onAddCard={() => setAddColumnId(col.id)}
-              onOpenCard={setSelectedCardId}
+        <div className="flex h-full min-h-0 gap-4">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 items-stretch gap-4 overflow-x-auto pb-2">
+            {columns.map((col, index) => (
+              <BoardColumn
+                key={col.id}
+                column={col}
+                cards={cardsByColumn.get(col.id) ?? []}
+                accent={columnAccent(index)}
+                onAddCard={() => setAddColumnId(col.id)}
+                onOpenCard={setSelectedCardId}
+              />
+            ))}
+          </div>
+
+          {selectedCard && (
+            <CardDetailPanel
+              card={selectedCard}
+              column={selectedColumn}
+              onClose={() => setSelectedCardId(null)}
             />
-          ))}
+          )}
         </div>
 
         <DragOverlay>
@@ -254,15 +256,6 @@ export function KanbanBoard({ boardID }: { boardID: string }) {
         boardID={boardID}
         columnId={addColumnId}
         onClose={() => setAddColumnId(null)}
-      />
-
-      <CardDetailSheet
-        card={selectedCard}
-        column={selectedColumn}
-        open={selectedCard !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedCardId(null);
-        }}
       />
     </>
   );
@@ -332,38 +325,36 @@ function BoardColumn({
         )}
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div
-          ref={setNodeRef}
-          className={cn(
-            "flex min-h-full flex-col gap-2 p-2.5 transition-colors",
-            isOver && "bg-accent/30",
-          )}
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5 transition-colors",
+          isOver && "bg-accent/30",
+        )}
+      >
+        <SortableContext
+          items={cards.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
         >
-          <SortableContext
-            items={cards.map((c) => c.id)}
-            strategy={verticalListSortingStrategy}
+          {cards.map((card) => (
+            <SortableCard
+              key={card.id}
+              card={card}
+              onOpen={() => onOpenCard(card.id)}
+            />
+          ))}
+        </SortableContext>
+        {cards.length === 0 && (
+          <button
+            type="button"
+            onClick={onAddCard}
+            className="flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/20 px-3 py-6 text-center text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background/40"
           >
-            {cards.map((card) => (
-              <SortableCard
-                key={card.id}
-                card={card}
-                onOpen={() => onOpenCard(card.id)}
-              />
-            ))}
-          </SortableContext>
-          {cards.length === 0 && (
-            <button
-              type="button"
-              onClick={onAddCard}
-              className="flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/20 px-3 py-6 text-center text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background/40"
-            >
-              <Plus className="h-4 w-4" />
-              Add the first card
-            </button>
-          )}
-        </div>
-      </ScrollArea>
+            <Plus className="h-4 w-4" />
+            Add the first card
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -478,136 +469,148 @@ function CardTile({
   );
 }
 
-function CardDetailSheet({
+function CardDetailPanel({
   card,
   column,
-  open,
-  onOpenChange,
+  onClose,
 }: {
-  card: KanbanCard | null;
+  card: KanbanCard;
   column: KanbanColumn | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }) {
-  if (!card) return null;
+  // Close on Escape, matching the affordance the old slide-over had. The panel
+  // is inline (no portal/overlay), so we listen on window rather than rely on
+  // a focus trap.
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="max-w-2xl">
-        <SheetHeader className="pr-10">
+    <aside className="flex h-full min-h-0 w-[22rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card/40 shadow-sm xl:w-[26rem]">
+      <div className="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
+        <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant={PRIORITY_VARIANT[card.priority]}>
               {card.priority}
             </Badge>
-            <Badge
-              variant="outline"
-              className={DIFFICULTY_TONE[card.difficulty]}
-            >
+            <Badge variant="outline" className={DIFFICULTY_TONE[card.difficulty]}>
               {card.difficulty}
             </Badge>
-            <Badge
-              variant={card.claim_status === "done" ? "success" : "default"}
-            >
+            <Badge variant={card.claim_status === "done" ? "success" : "default"}>
               {card.claim_status}
             </Badge>
           </div>
-          <SheetTitle className="text-xl leading-snug">{card.title}</SheetTitle>
-          <SheetDescription>
-            {column?.name ?? "Unknown column"} - updated{" "}
+          <h2 className="break-words text-lg font-semibold leading-snug text-slate-100">
+            {card.title}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {column?.name ?? "Unknown column"} · updated{" "}
             {formatDateTime(card.updated_at)}
-          </SheetDescription>
-        </SheetHeader>
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Close details"
+          onClick={onClose}
+          className="shrink-0 rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-        <SheetBody className="space-y-5">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+            <FileText className="h-3.5 w-3.5" />
+            Details
+          </h3>
+          <div className="min-h-[8rem] whitespace-pre-wrap rounded-md border border-border/70 bg-background/35 p-4 text-sm leading-relaxed text-slate-200">
+            {card.body || (
+              <span className="text-muted-foreground">
+                No description has been added.
+              </span>
+            )}
+          </div>
+        </section>
+
+        {(card.claimed_by || card.result_summary || card.result_pr_url) && (
           <section className="space-y-2">
             <h3 className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              Details
+              <Sparkles className="h-3.5 w-3.5" />
+              Execution
             </h3>
-            <div className="min-h-[8rem] whitespace-pre-wrap rounded-md border border-border/70 bg-background/35 p-4 text-sm leading-relaxed text-slate-200">
-              {card.body || (
-                <span className="text-muted-foreground">
-                  No description has been added.
-                </span>
+            <div className="grid gap-2 rounded-md border border-border/70 bg-background/25 p-3 text-sm">
+              {card.claimed_by && (
+                <DetailRow
+                  icon={<UserRound className="h-4 w-4" />}
+                  label="Claimed by"
+                  value={card.claimed_by}
+                />
+              )}
+              {card.result_task_id && (
+                <DetailRow
+                  icon={<Hash className="h-4 w-4" />}
+                  label="Task"
+                  value={card.result_task_id}
+                  mono
+                />
+              )}
+              {card.result_summary && (
+                <div className="space-y-1.5">
+                  <div className="text-xs uppercase text-muted-foreground">
+                    Result summary
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {card.result_summary}
+                  </p>
+                </div>
+              )}
+              {card.result_pr_url && (
+                <a
+                  href={card.result_pr_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-w-0 items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sky-300 transition-colors hover:bg-sky-500/15"
+                >
+                  <ExternalLink className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{card.result_pr_url}</span>
+                </a>
               )}
             </div>
           </section>
+        )}
 
-          {(card.claimed_by || card.result_summary || card.result_pr_url) && (
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5" />
-                Execution
-              </h3>
-              <div className="grid gap-2 rounded-md border border-border/70 bg-background/25 p-3 text-sm">
-                {card.claimed_by && (
-                  <DetailRow
-                    icon={<UserRound className="h-4 w-4" />}
-                    label="Claimed by"
-                    value={card.claimed_by}
-                  />
-                )}
-                {card.result_task_id && (
-                  <DetailRow
-                    icon={<Hash className="h-4 w-4" />}
-                    label="Task"
-                    value={card.result_task_id}
-                    mono
-                  />
-                )}
-                {card.result_summary && (
-                  <div className="space-y-1.5">
-                    <div className="text-xs uppercase text-muted-foreground">
-                      Result summary
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {card.result_summary}
-                    </p>
-                  </div>
-                )}
-                {card.result_pr_url && (
-                  <a
-                    href={card.result_pr_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-w-0 items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sky-300 transition-colors hover:bg-sky-500/15"
-                  >
-                    <ExternalLink className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{card.result_pr_url}</span>
-                  </a>
-                )}
-              </div>
-            </section>
+        <section className="grid gap-2 text-sm sm:grid-cols-2">
+          <DetailRow
+            icon={<CalendarClock className="h-4 w-4" />}
+            label="Created"
+            value={formatDateTime(card.created_at)}
+          />
+          <DetailRow
+            icon={<CalendarClock className="h-4 w-4" />}
+            label="Updated"
+            value={formatDateTime(card.updated_at)}
+          />
+          {card.claimed_at && (
+            <DetailRow
+              icon={<CalendarClock className="h-4 w-4" />}
+              label="Claimed"
+              value={formatDateTime(card.claimed_at)}
+            />
           )}
-
-          <section className="grid gap-2 text-sm sm:grid-cols-2">
-            <DetailRow
-              icon={<CalendarClock className="h-4 w-4" />}
-              label="Created"
-              value={formatDateTime(card.created_at)}
-            />
-            <DetailRow
-              icon={<CalendarClock className="h-4 w-4" />}
-              label="Updated"
-              value={formatDateTime(card.updated_at)}
-            />
-            {card.claimed_at && (
-              <DetailRow
-                icon={<CalendarClock className="h-4 w-4" />}
-                label="Claimed"
-                value={formatDateTime(card.claimed_at)}
-              />
-            )}
-            <DetailRow
-              icon={<Hash className="h-4 w-4" />}
-              label="Card ID"
-              value={card.id}
-              mono
-            />
-          </section>
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
+          <DetailRow
+            icon={<Hash className="h-4 w-4" />}
+            label="Card ID"
+            value={card.id}
+            mono
+          />
+        </section>
+      </div>
+    </aside>
   );
 }
 
