@@ -55,6 +55,8 @@ export function useEventSource(
         "heartbeat",
         "change",
         "done",
+        // delegator live-task tail (delegator_task_<id> stream)
+        "chunk",
         "run.started",
         "stage.started",
         "stage.finished",
