@@ -24,7 +24,7 @@
  * Pi's research surface, MCP tools, or evo-cli respectively.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   Clock,
@@ -35,7 +35,9 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DelegationStreamDialog } from "@/features/delegator/DelegationStreamDialog";
 import { cn } from "@/lib/utils";
 import {
   type AgentQuota,
@@ -215,6 +217,8 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function TasksTable({ tasks }: { tasks: DelegatorTask[] }) {
+  const [streamTask, setStreamTask] = useState<DelegatorTask | null>(null);
+
   if (!tasks.length) {
     return (
       <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -231,27 +235,48 @@ function TasksTable({ tasks }: { tasks: DelegatorTask[] }) {
             <th className="px-3 py-2 text-left font-medium">prompt</th>
             <th className="px-3 py-2 text-left font-medium">status</th>
             <th className="px-3 py-2 text-right font-medium">created</th>
+            <th className="px-3 py-2 text-right font-medium" />
           </tr>
         </thead>
         <tbody>
-          {tasks.slice(0, 10).map((t) => (
-            <tr key={t.id} className="border-t border-border">
-              <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                {t.agent || "?"}
-              </td>
-              <td className="max-w-md truncate px-3 py-2 align-top">
-                {t.prompt?.slice(0, 120) ?? ""}
-              </td>
-              <td className="px-3 py-2 align-top">
-                <StatusPill status={t.status} />
-              </td>
-              <td className="px-3 py-2 text-right text-xs text-muted-foreground">
-                {fmtRelative(t.created_at)}
-              </td>
-            </tr>
-          ))}
+          {tasks.slice(0, 10).map((t) => {
+            const live = t.status === "running" || t.status === "pending";
+            return (
+              <tr key={t.id} className="border-t border-border">
+                <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                  {t.agent || "?"}
+                </td>
+                <td className="max-w-md truncate px-3 py-2 align-top">
+                  {t.prompt?.slice(0, 120) ?? ""}
+                </td>
+                <td className="px-3 py-2 align-top">
+                  <StatusPill status={t.status} />
+                </td>
+                <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                  {fmtRelative(t.created_at)}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {live && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setStreamTask(t)}
+                    >
+                      ▶ live
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <DelegationStreamDialog
+        taskId={streamTask?.id ?? null}
+        agent={streamTask?.agent}
+        onClose={() => setStreamTask(null)}
+      />
     </div>
   );
 }
