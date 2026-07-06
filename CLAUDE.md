@@ -23,10 +23,23 @@ pnpm install
 pnpm build         # tsc -b && vite build -> dist/
 pnpm dev           # vite on :5173
 pnpm typecheck
+pnpm test          # vitest run (unit tests under src/**/*.test.ts)
 pnpm lint
 ```
 
-No test suite. Typecheck + lint are the contract.
+**Lockfile policy:** `pnpm-lock.yaml` is committed and is the source of
+truth for dependency resolution — pnpm only, do not add a
+`package-lock.json` or `yarn.lock`. CI/ship should install with
+`pnpm install --frozen-lockfile` so builds are reproducible; when you
+intentionally change `package.json` deps, run `pnpm install` and commit the
+lockfile diff in the same PR. `pnpm-workspace.yaml` carries the
+`onlyBuiltDependencies` allow-list (`@swc/core`) so pnpm v11's
+ignored-build-scripts advisory doesn't abort installs.
+
+Unit tests run on vitest (jsdom environment, @testing-library/react
+available, jest-dom matchers registered in `src/test/setup.ts`). Put tests
+next to the module as `<name>.test.ts(x)`. Typecheck + lint + tests are the
+contract.
 
 ### QA rationale
 

@@ -198,7 +198,9 @@ export function TrainingChart({
             // Suppress the smoothed-twin entries from the legend — clicking
             // a legend item toggles both via the onClick handler below.
             filter: (item, chartData) => {
-              const ds = chartData.datasets[item.datasetIndex] as
+              const dsIdx = item.datasetIndex;
+              if (dsIdx === undefined) return true;
+              const ds = chartData.datasets[dsIdx] as
                 | LineDatasetWithFlag
                 | undefined;
               return !ds?.smoothed;
@@ -242,8 +244,9 @@ export function TrainingChart({
           callbacks: {
             label: (ctx: TooltipItem<"line">) => {
               const y = ctx.parsed.y;
-              const formatted = Number.isFinite(y)
-                ? Math.abs(y) >= 1000
+              const formatted =
+                typeof y === "number" && Number.isFinite(y)
+                  ? Math.abs(y) >= 1000
                   ? y.toFixed(0)
                   : Math.abs(y) >= 1
                     ? y.toFixed(3)

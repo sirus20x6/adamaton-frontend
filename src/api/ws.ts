@@ -73,7 +73,7 @@ function resolveWsUrl(taskId: string): string {
   return `/ws/research/${encodeURIComponent(taskId)}`;
 }
 
-function isResearchEvent(value: unknown): value is ResearchEvent {
+export function isResearchEvent(value: unknown): value is ResearchEvent {
   if (!value || typeof value !== "object") return false;
   const t = (value as { type?: unknown }).type;
   const known =
