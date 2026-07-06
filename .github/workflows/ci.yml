@@ -1,0 +1,34 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-frontend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install deps
+        # No pnpm lockfile is committed (only package-lock.json), so resolve
+        # from package.json — same as `bin/adam ship <host> frontend`.
+        # pnpm v10+ exits non-zero on the ERR_PNPM_IGNORED_BUILDS advisory
+        # (e.g. @swc/core) even when the install succeeded; don't let the
+        # advisory fail CI — assert the install actually produced the vite
+        # binary instead, and let `vite build` be the true gate.
+        run: |
+          CI=true pnpm install --no-frozen-lockfile \
+            || echo "note: pnpm install exited non-zero (likely ignored-build-scripts advisory); continuing"
+          test -x node_modules/.bin/vite
+      - name: typecheck (informational only)
+        # ~44 pre-existing tsc -b errors; delta-guard is too flaky for CI v1,
+        # so this step never fails the job — the gate is the prod build below.
+        # (pnpm v11 verify-deps breaks `pnpm <script>`; call binaries directly.)
+        run: |
+          ./node_modules/.bin/tsc -b 2>&1 | tee tsc.out || true
+          n=$(grep -c 'error TS' tsc.out || true)
+          echo "tsc errors: $n (baseline ~44)"
+      - name: prod build
+        run: CI=true ./node_modules/.bin/vite build
