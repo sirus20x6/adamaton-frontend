@@ -1,2 +1,6 @@
+# pnpm v11 renamed build-script approval to allowBuilds; keep the v10
+# onlyBuiltDependencies spelling too so both major versions honor it.
+allowBuilds:
+  '@swc/core': true
 onlyBuiltDependencies:
   - '@swc/core'
