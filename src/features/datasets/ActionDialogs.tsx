@@ -301,7 +301,7 @@ export function MakeSplitsDialog({
                     value={r.name}
                     onChange={(e) => {
                       const next = [...rows];
-                      next[i] = { ...next[i], name: e.target.value };
+                      next[i] = { ...r, name: e.target.value };
                       setRows(next);
                     }}
                     className="flex-1 font-mono"
@@ -311,7 +311,7 @@ export function MakeSplitsDialog({
                     value={r.ratio}
                     onChange={(e) => {
                       const next = [...rows];
-                      next[i] = { ...next[i], ratio: e.target.value };
+                      next[i] = { ...r, ratio: e.target.value };
                       setRows(next);
                     }}
                     className="w-24 font-mono tabular-nums"

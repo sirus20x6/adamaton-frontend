@@ -68,7 +68,7 @@ const FILE_AGENTS = [
   { key: "codex", label: "Codex", kind: "files" as const },
   { key: "gemini", label: "Gemini", kind: "file" as const },
   { key: "opencode", label: "OpenCode", kind: "files" as const },
-];
+] as const;
 
 const DB_AGENT_KEYS = ["insights", "entities", "relationships"] as const;
 
