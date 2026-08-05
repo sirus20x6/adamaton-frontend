@@ -27,7 +27,12 @@ export const CARD_DIFFICULTIES = [
 export type CardDifficulty = (typeof CARD_DIFFICULTIES)[number];
 
 // Mirrors the CHECK constraint on evo.cards.claim_status.
-export const CARD_CLAIM_STATUSES = ["unclaimed", "claimed", "done"] as const;
+export const CARD_CLAIM_STATUSES = [
+  "unclaimed",
+  "claimed",
+  "done",
+  "failed",
+] as const;
 export type CardClaimStatus = (typeof CARD_CLAIM_STATUSES)[number];
 
 export interface Board {
@@ -74,11 +79,20 @@ export interface Comment {
   created_at: string;
 }
 
+export interface CardLink {
+  source_card_id: string;
+  target_card_id: string;
+  link_type: "blocks" | "relates";
+  created_at: string;
+}
+
 // GET /kanban/boards/{bid} returns the board plus its columns and cards.
 export interface BoardDetail {
   board: Board;
   columns: Column[];
   cards: Card[];
+  comments?: Comment[];
+  links?: CardLink[];
 }
 
 // POST /projects/{id}/kanban/boards returns the new board with seeded columns.
@@ -129,6 +143,10 @@ export interface ReleaseCardRequest {
   claim_token: string;
 }
 
+export interface ReopenCardRequest {
+  cardID: string;
+}
+
 export interface ArchiveCardRequest {
   cardID: string;
 }
@@ -146,10 +164,29 @@ export interface ArchiveDoneCardsResponse {
   board_id: string;
 }
 
+export interface ReleaseStaleCardsRequest {
+  older_than_minutes?: number;
+}
+
+export interface ReleaseStaleCardsResponse {
+  released: number;
+  board_id: string;
+}
+
 export interface AddCommentRequest {
   cardID: string;
   author: string;
   text: string;
+}
+
+export interface AddDependencyRequest {
+  cardID: string;
+  depends_on_card_id: string;
+}
+
+export interface DeleteDependencyRequest {
+  cardID: string;
+  depends_on_card_id: string;
 }
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {
@@ -220,6 +257,8 @@ export const kanbanApi = {
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/complete`, body),
   releaseCard: ({ cardID, ...body }: ReleaseCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/release`, body),
+  reopenCard: ({ cardID }: ReopenCardRequest): Promise<Card> =>
+    postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/reopen`, {}),
   archiveCard: ({ cardID }: ArchiveCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/archive`, {}),
   restoreCard: ({ cardID }: RestoreCardRequest): Promise<Card> =>
@@ -232,8 +271,34 @@ export const kanbanApi = {
       `${EVO_BASE}/kanban/boards/${enc(boardID)}/archive-done`,
       body,
     ),
+  releaseStaleCards: (
+    boardID: string,
+    body: ReleaseStaleCardsRequest,
+  ): Promise<ReleaseStaleCardsResponse> =>
+    postJSON<ReleaseStaleCardsResponse>(
+      `${EVO_BASE}/kanban/boards/${enc(boardID)}/release-stale`,
+      body,
+    ),
   comment: ({ cardID, ...body }: AddCommentRequest): Promise<Comment> =>
     postJSON<Comment>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/comment`, body),
+  addDependency: ({
+    cardID,
+    ...body
+  }: AddDependencyRequest): Promise<CardLink> =>
+    postJSON<CardLink>(
+      `${EVO_BASE}/kanban/cards/${enc(cardID)}/dependencies`,
+      body,
+    ),
+  deleteDependency: ({
+    cardID,
+    depends_on_card_id,
+  }: DeleteDependencyRequest): Promise<{ deleted: boolean }> =>
+    fetch(
+      `${EVO_BASE}/kanban/cards/${enc(cardID)}/dependencies/${enc(
+        depends_on_card_id,
+      )}`,
+      { method: "DELETE" },
+    ).then(jsonOrThrow<{ deleted: boolean }>),
 };
 
 export const kanbanKeys = {
@@ -379,6 +444,14 @@ export function useReleaseCard(boardID: string) {
   });
 }
 
+export function useReopenCard(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<Card, Error, ReopenCardRequest>({
+    mutationFn: kanbanApi.reopenCard,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
 export function useArchiveCard(boardID: string) {
   const qc = useQueryClient();
   return useMutation<Card, Error, ArchiveCardRequest>({
@@ -403,10 +476,38 @@ export function useArchiveDoneCards(boardID: string) {
   });
 }
 
+export function useReleaseStaleCards(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    ReleaseStaleCardsResponse,
+    Error,
+    ReleaseStaleCardsRequest
+  >({
+    mutationFn: (body) => kanbanApi.releaseStaleCards(boardID, body),
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
 export function useAddComment(boardID: string) {
   const qc = useQueryClient();
   return useMutation<Comment, Error, AddCommentRequest>({
     mutationFn: kanbanApi.comment,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useAddDependency(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<CardLink, Error, AddDependencyRequest>({
+    mutationFn: kanbanApi.addDependency,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useDeleteDependency(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<{ deleted: boolean }, Error, DeleteDependencyRequest>({
+    mutationFn: kanbanApi.deleteDependency,
     onSuccess: () => invalidateBoard(qc, boardID),
   });
 }
