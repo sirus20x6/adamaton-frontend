@@ -31,6 +31,7 @@ export const CARD_CLAIM_STATUSES = [
   "unclaimed",
   "claimed",
   "done",
+  "failed",
 ] as const;
 export type CardClaimStatus = (typeof CARD_CLAIM_STATUSES)[number];
 
@@ -65,6 +66,7 @@ export interface Card {
   result_task_id?: string;
   result_summary?: string;
   result_pr_url?: string;
+  archived_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -77,11 +79,20 @@ export interface Comment {
   created_at: string;
 }
 
+export interface CardLink {
+  source_card_id: string;
+  target_card_id: string;
+  link_type: "blocks" | "relates";
+  created_at: string;
+}
+
 // GET /kanban/boards/{bid} returns the board plus its columns and cards.
 export interface BoardDetail {
   board: Board;
   columns: Column[];
   cards: Card[];
+  comments?: Comment[];
+  links?: CardLink[];
 }
 
 // POST /projects/{id}/kanban/boards returns the new board with seeded columns.
@@ -132,10 +143,50 @@ export interface ReleaseCardRequest {
   claim_token: string;
 }
 
+export interface ReopenCardRequest {
+  cardID: string;
+}
+
+export interface ArchiveCardRequest {
+  cardID: string;
+}
+
+export interface RestoreCardRequest {
+  cardID: string;
+}
+
+export interface ArchiveDoneCardsRequest {
+  older_than_days?: number;
+}
+
+export interface ArchiveDoneCardsResponse {
+  archived: number;
+  board_id: string;
+}
+
+export interface ReleaseStaleCardsRequest {
+  older_than_minutes?: number;
+}
+
+export interface ReleaseStaleCardsResponse {
+  released: number;
+  board_id: string;
+}
+
 export interface AddCommentRequest {
   cardID: string;
   author: string;
   text: string;
+}
+
+export interface AddDependencyRequest {
+  cardID: string;
+  depends_on_card_id: string;
+}
+
+export interface DeleteDependencyRequest {
+  cardID: string;
+  depends_on_card_id: string;
 }
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {
@@ -178,10 +229,12 @@ export const kanbanApi = {
       `${EVO_BASE}/projects/${enc(projectID)}/kanban/boards`,
       body,
     ),
-  getBoard: (boardID: string): Promise<BoardDetail> =>
-    fetch(`${EVO_BASE}/kanban/boards/${enc(boardID)}`).then(
-      jsonOrThrow<BoardDetail>,
-    ),
+  getBoard: (boardID: string, includeArchived = false): Promise<BoardDetail> =>
+    fetch(
+      `${EVO_BASE}/kanban/boards/${enc(boardID)}${
+        includeArchived ? "?include_archived=true" : ""
+      }`,
+    ).then(jsonOrThrow<BoardDetail>),
   ready: (boardID: string): Promise<Card[]> =>
     fetch(`${EVO_BASE}/kanban/boards/${enc(boardID)}/ready`).then(
       jsonOrThrow<Card[]>,
@@ -190,10 +243,7 @@ export const kanbanApi = {
   // Cards.
   createCard: (boardID: string, body: CreateCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/boards/${enc(boardID)}/cards`, body),
-  moveCard: ({
-    cardID,
-    ...body
-  }: MoveCardRequest): Promise<Card> =>
+  moveCard: ({ cardID, ...body }: MoveCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/move`, body),
   claimCard: ({
     cardID,
@@ -203,28 +253,64 @@ export const kanbanApi = {
       `${EVO_BASE}/kanban/cards/${enc(cardID)}/claim`,
       body,
     ),
-  completeCard: ({
-    cardID,
-    ...body
-  }: CompleteCardRequest): Promise<Card> =>
+  completeCard: ({ cardID, ...body }: CompleteCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/complete`, body),
-  releaseCard: ({
-    cardID,
-    ...body
-  }: ReleaseCardRequest): Promise<Card> =>
+  releaseCard: ({ cardID, ...body }: ReleaseCardRequest): Promise<Card> =>
     postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/release`, body),
-  comment: ({
+  reopenCard: ({ cardID }: ReopenCardRequest): Promise<Card> =>
+    postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/reopen`, {}),
+  archiveCard: ({ cardID }: ArchiveCardRequest): Promise<Card> =>
+    postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/archive`, {}),
+  restoreCard: ({ cardID }: RestoreCardRequest): Promise<Card> =>
+    postJSON<Card>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/restore`, {}),
+  archiveDoneCards: (
+    boardID: string,
+    body: ArchiveDoneCardsRequest,
+  ): Promise<ArchiveDoneCardsResponse> =>
+    postJSON<ArchiveDoneCardsResponse>(
+      `${EVO_BASE}/kanban/boards/${enc(boardID)}/archive-done`,
+      body,
+    ),
+  releaseStaleCards: (
+    boardID: string,
+    body: ReleaseStaleCardsRequest,
+  ): Promise<ReleaseStaleCardsResponse> =>
+    postJSON<ReleaseStaleCardsResponse>(
+      `${EVO_BASE}/kanban/boards/${enc(boardID)}/release-stale`,
+      body,
+    ),
+  comment: ({ cardID, ...body }: AddCommentRequest): Promise<Comment> =>
+    postJSON<Comment>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/comment`, body),
+  addDependency: ({
     cardID,
     ...body
-  }: AddCommentRequest): Promise<Comment> =>
-    postJSON<Comment>(`${EVO_BASE}/kanban/cards/${enc(cardID)}/comment`, body),
+  }: AddDependencyRequest): Promise<CardLink> =>
+    postJSON<CardLink>(
+      `${EVO_BASE}/kanban/cards/${enc(cardID)}/dependencies`,
+      body,
+    ),
+  deleteDependency: ({
+    cardID,
+    depends_on_card_id,
+  }: DeleteDependencyRequest): Promise<{ deleted: boolean }> =>
+    fetch(
+      `${EVO_BASE}/kanban/cards/${enc(cardID)}/dependencies/${enc(
+        depends_on_card_id,
+      )}`,
+      { method: "DELETE" },
+    ).then(jsonOrThrow<{ deleted: boolean }>),
 };
 
 export const kanbanKeys = {
   all: ["kanban"] as const,
-  boards: (projectID: string) =>
-    ["kanban", "boards", projectID] as const,
-  board: (boardID: string) => ["kanban", "board", boardID] as const,
+  boards: (projectID: string) => ["kanban", "boards", projectID] as const,
+  board: (boardID: string, includeArchived = false) =>
+    [
+      "kanban",
+      "board",
+      boardID,
+      includeArchived ? "with-archive" : "active",
+    ] as const,
   ready: (boardID: string) => ["kanban", "ready", boardID] as const,
 };
 
@@ -238,12 +324,15 @@ export function useKanbanBoards(projectID: string | null) {
   });
 }
 
-export function useKanbanBoard(boardID: string | null) {
+export function useKanbanBoard(
+  boardID: string | null,
+  includeArchived = false,
+) {
   return useQuery({
     queryKey: boardID
-      ? kanbanKeys.board(boardID)
+      ? kanbanKeys.board(boardID, includeArchived)
       : ["kanban", "board", "_disabled"],
-    queryFn: () => kanbanApi.getBoard(boardID as string),
+    queryFn: () => kanbanApi.getBoard(boardID as string, includeArchived),
     enabled: !!boardID,
     refetchInterval: 5_000,
   });
@@ -283,17 +372,12 @@ export function useCreateCard(boardID: string) {
 // useMoveCard is optimistic: it patches the card's column_id (and position
 // when supplied) in the cached BoardDetail immediately so the dragged card
 // stays put under the cursor, then rolls back if the server rejects the move.
-export function useMoveCard(boardID: string) {
+export function useMoveCard(boardID: string, includeArchived = false) {
   const qc = useQueryClient();
-  return useMutation<
-    Card,
-    Error,
-    MoveCardRequest,
-    { previous?: BoardDetail }
-  >({
+  return useMutation<Card, Error, MoveCardRequest, { previous?: BoardDetail }>({
     mutationFn: kanbanApi.moveCard,
     onMutate: async (vars) => {
-      const key = kanbanKeys.board(boardID);
+      const key = kanbanKeys.board(boardID, includeArchived);
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<BoardDetail>(key);
       if (previous) {
@@ -314,11 +398,14 @@ export function useMoveCard(boardID: string) {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) {
-        qc.setQueryData(kanbanKeys.board(boardID), ctx.previous);
+        qc.setQueryData(
+          kanbanKeys.board(boardID, includeArchived),
+          ctx.previous,
+        );
       }
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: kanbanKeys.board(boardID) });
+      qc.invalidateQueries({ queryKey: ["kanban", "board", boardID] });
     },
   });
 }
@@ -329,7 +416,7 @@ function invalidateBoard(
   qc: ReturnType<typeof useQueryClient>,
   boardID: string,
 ) {
-  qc.invalidateQueries({ queryKey: kanbanKeys.board(boardID) });
+  qc.invalidateQueries({ queryKey: ["kanban", "board", boardID] });
   qc.invalidateQueries({ queryKey: kanbanKeys.ready(boardID) });
 }
 
@@ -357,10 +444,70 @@ export function useReleaseCard(boardID: string) {
   });
 }
 
+export function useReopenCard(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<Card, Error, ReopenCardRequest>({
+    mutationFn: kanbanApi.reopenCard,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useArchiveCard(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<Card, Error, ArchiveCardRequest>({
+    mutationFn: kanbanApi.archiveCard,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useRestoreCard(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<Card, Error, RestoreCardRequest>({
+    mutationFn: kanbanApi.restoreCard,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useArchiveDoneCards(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<ArchiveDoneCardsResponse, Error, ArchiveDoneCardsRequest>({
+    mutationFn: (body) => kanbanApi.archiveDoneCards(boardID, body),
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useReleaseStaleCards(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    ReleaseStaleCardsResponse,
+    Error,
+    ReleaseStaleCardsRequest
+  >({
+    mutationFn: (body) => kanbanApi.releaseStaleCards(boardID, body),
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
 export function useAddComment(boardID: string) {
   const qc = useQueryClient();
   return useMutation<Comment, Error, AddCommentRequest>({
     mutationFn: kanbanApi.comment,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useAddDependency(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<CardLink, Error, AddDependencyRequest>({
+    mutationFn: kanbanApi.addDependency,
+    onSuccess: () => invalidateBoard(qc, boardID),
+  });
+}
+
+export function useDeleteDependency(boardID: string) {
+  const qc = useQueryClient();
+  return useMutation<{ deleted: boolean }, Error, DeleteDependencyRequest>({
+    mutationFn: kanbanApi.deleteDependency,
     onSuccess: () => invalidateBoard(qc, boardID),
   });
 }
